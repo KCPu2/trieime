@@ -298,7 +298,7 @@ function buildAllLive() {
     const nameMap = {};
     for (const h of hospitals) {
       const code = String(h["facility_code"] || "").trim();
-      const name = h["name"] || "";
+      const name = h["facility_name"] || h["name"] || "";   
       if (code && name) nameMap[code] = name;
     }
     for (const row of qld) {
