@@ -1,11 +1,12 @@
 name: Refresh Data
-permissions:
-  contents: write   
 
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   refresh:
@@ -16,32 +17,32 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
-      # ═══ QLD Live ED Waits (40 hospitals, daily) ═══
+      # ═══ QLD Live ED Waits ═══
       - name: Download QLD Live ED
         run: |
           curl -sL -o data/au_qld_live.csv \
             "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
 
-      # ═══ QLD Hospital Names (for the join) ═══
+      # ═══ QLD Hospital Names ═══
       - name: Download QLD Hospital Names
         run: |
           curl -sL -o data/au_qld_hospitals.csv \
             "https://publicdata.au/d/qld-emergency-department-list/latest/data.csv" || true
 
-      # ═══ AU ED Time in ED (all states, quarterly) ═══
-      - name: Download AU ED Time in ED
+      # ═══ AU ED Time in ED ═══
+      - name: Download AU ED
         run: |
           curl -sL -o data/au_ed_time_in_ed.csv \
             "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
 
-      # ═══ AU ED Patients Seen On Time / 4-Hour Rule ═══
-      - name: Download AU 4-Hour Rule
+      # ═══ AU 4-Hour Rule ═══
+      - name: Download AU 4-Hour
         run: |
           curl -sL -o data/au_ed_4hour.csv \
             "https://publicdata.au/d/au-ed-patients-seen-on-time/latest/data.csv" || true
 
-      # ═══ AU Elective Surgery Waits (by urgency) ═══
-      - name: Download AU Surgical Waits
+      # ═══ AU Surgical ═══
+      - name: Download AU Surgical
         run: |
           curl -sL -o data/au_surgical_waits.csv \
             "https://publicdata.au/d/au-elective-surgery-waiting-times/latest/data.csv" || true
