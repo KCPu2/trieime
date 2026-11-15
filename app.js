@@ -1,9 +1,9 @@
 /**
- * TriageTime — v5
- * Live: QLD + NSW. Historical: all states. Smart search.
+ * TriageTime — Complete Application
+ * Live ED (main) + Historical (tab) + Smart Search
  */
 
-// ─── Friendly column names ───────────────────────────────────────────────────
+// ─── Column name mapping ─────────────────────────────────────────────────────
 const COLUMN_MAP = {
   "facility_code": "",
   "data_updated": "Updated",
@@ -17,10 +17,7 @@ const COLUMN_MAP = {
   "_id": "",
   "hospital": "Hospital",
   "hospital_name": "Hospital",
-  "patient_wait_count": "Waiting Now",
-  "source_updated_utc": "Updated",
-  "usual_patients": "Usual at This Time",
-  "bed_count": "Beds",
+  "name": "Hospital",
   "state": "State",
   "reporting_unit": "Hospital",
   "reporting_unit_type": "",
@@ -46,37 +43,41 @@ function friendlyName(col) {
   return col.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// ─── Format numbers (no comma on years) ──────────────────────────────────────
+// ─── Format values for display ───────────────────────────────────────────────
 function formatValue(col, val) {
   const num = parseFloat(val);
-  if (isNaN(num)) return val;
+  if (isNaN(num)) return String(val ?? "—");
 
-  if (col === "year" && num >= 1900 && num <= 2100) return String(num);
+  // Never add commas to years
+  if (col === "year" && num >= 1900 && num <= 2100) return String(Math.round(num));
 
-  const isMinutes = /wait|minutes|min/i.test(col);
-  if (isMinutes && num > 0 && num < 1440) {
+  // Minutes → "3h 5m"
+  if (/wait|minutes|min/i.test(col) && num > 0 && num < 1440) {
     if (num < 60) return `${Math.round(num)} min`;
     const h = Math.floor(num / 60);
     const m = Math.round(num % 60);
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
 
-  const isDays = /days|_days/i.test(col);
-  if (isDays && num > 0 && num < 3650) {
+  // Days → "6 months"
+  if (/days/i.test(col) && num > 0 && num < 3650) {
     if (num < 30) return `${Math.round(num)} days`;
     if (num < 365) return `${(num / 30).toFixed(1)} months`;
     return `${(num / 365).toFixed(1)} years`;
   }
 
-  if (/pct|percent|share|proportion|breach/i.test(col) && num <= 100) {
+  // Percentages
+  if (/pct|percent|share|proportion/i.test(col) && num >= 0 && num <= 100) {
     return `${num.toFixed(1)}%`;
   }
 
+  // Large numbers (not years)
   if (num >= 1000 && num < 1900) return num.toLocaleString("en-AU");
-  return val;
+
+  return String(val);
 }
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── Application state ───────────────────────────────────────────────────────
 let currentPage = "live";
 let liveState = "all";
 let histSubTab = "ed";
@@ -84,41 +85,33 @@ let tableData = {};
 let liveSortCol = -1, liveSortAsc = true;
 let histSortCol = -1, histSortAsc = true;
 
-// ─── VIC/SA disclaimer ───────────────────────────────────────────────────────
+// ─── VIC/SA/WA disclaimers ───────────────────────────────────────────────────
 const DISCLAIMER = {
-  vic: {
-    state: "VIC",
-    text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports."
-  },
-  sa: {
-    state: "SA",
-    text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports."
-  },
-  wa: {
-    state: "WA",
-    text: "WA Health publishes live ED data as an HTML table only (no CSV download). Live WA data is coming soon. Check the Historical Data tab for annual WA averages."
-  }
+  vic: { state: "VIC", text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports." },
+  sa:  { state: "SA",  text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports." },
+  wa:  { state: "WA",  text: "WA Health publishes live ED data as an HTML table only (no CSV). Live WA data is not available here. Check Historical Data for annual WA averages." },
 };
 
-// ─── Data sources ────────────────────────────────────────────────────────────
-const LIVE_SOURCES = {
-  all: null, // Built by combining QLD + NSW in JS
+// ─── Data source URLs ────────────────────────────────────────────────────────
+const LIVE_URLS = {
   qld: "data/au_qld_live.csv",
-  nsw: "data/au_nsw_live.csv",
 };
 
-const HIST_SOURCES = {
+const HIST_URLS = {
   ed: "data/au_ed_time_in_ed.csv",
   surgical: "data/au_surgical_waits.csv",
   fourhour: "data/au_ed_4hour.csv",
 };
 
-// ─── Init ────────────────────────────────────────────────────────────────────
+const QLD_HOSPITALS_URL = "data/au_qld_hospitals.csv";
+
+// ─── Initialisation ──────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   initMainTabs();
-  initLiveStateButtons();
+  initStateButtons();
   initHistSubTabs();
-  initSearch();
+  initSmartSearch("search", "search-suggestions", renderLive);
+  initSmartSearch("search-historical", null, renderHistorical);
   loadAllData();
 });
 
@@ -129,14 +122,15 @@ function initMainTabs() {
       btn.classList.add("active");
       currentPage = btn.dataset.tab;
       document.querySelectorAll(".page-panel").forEach(p => p.classList.remove("active"));
-      document.getElementById(`page-${currentPage}`).classList.add("active");
-      if (currentPage === "historical") renderHistorical();
+      const panel = document.getElementById(`page-${currentPage}`);
+      if (panel) panel.classList.add("active");
       if (currentPage === "live") renderLive();
+      if (currentPage === "historical") renderHistorical();
     });
   });
 }
 
-function initLiveStateButtons() {
+function initStateButtons() {
   document.querySelectorAll(".state-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".state-btn").forEach(b => b.classList.remove("active"));
@@ -156,28 +150,29 @@ function initHistSubTabs() {
       histSubTab = btn.dataset.subtab;
       histSortCol = -1;
       document.querySelectorAll(".subtab-panel").forEach(p => p.classList.remove("active"));
-      document.getElementById(`subtab-${histSubTab}`).classList.add("active");
+      const panel = document.getElementById(`subtab-${histSubTab}`);
+      if (panel) panel.classList.add("active");
       renderHistorical();
     });
   });
 }
 
-// ─── Smart search ────────────────────────────────────────────────────────────
-function initSearch() {
-  const input = document.getElementById("search");
-  const suggestionsEl = document.getElementById("search-suggestions");
+// ─── Smart search (autocomplete) ─────────────────────────────────────────────
+function initSmartSearch(inputId, suggestionsId, onSearch) {
+  const input = document.getElementById(inputId);
+  const suggestionsEl = suggestionsId ? document.getElementById(suggestionsId) : null;
+  if (!input) return;
+
   let highlightedIndex = -1;
   let suggestions = [];
-
-  if (!input || !suggestionsEl) return;
 
   function buildHospitalList() {
     const names = new Set();
     for (const key of Object.keys(tableData)) {
-      if (key.startsWith("live_") && Array.isArray(tableData[key])) {
+      if (Array.isArray(tableData[key])) {
         for (const row of tableData[key]) {
-          const name = row["hospital"] || row["name"] || row["Hospital"] || "";
-          if (name && name !== "Unknown" && name !== "Facility") names.add(name);
+          const name = row["hospital"] || row["name"] || row["reporting_unit"] || row["Hospital"] || "";
+          if (name && name !== "Unknown" && !name.startsWith("Facility")) names.add(name);
         }
       }
     }
@@ -185,16 +180,15 @@ function initSearch() {
   }
 
   function showSuggestions(term) {
+    if (!suggestionsEl) return;
     if (!term || term.length < 2) {
       suggestionsEl.classList.remove("visible");
       suggestions = [];
       highlightedIndex = -1;
       return;
     }
-    const allHospitals = buildHospitalList();
-    suggestions = allHospitals
-      .filter(h => h.toLowerCase().includes(term.toLowerCase()))
-      .slice(0, 8);
+    const all = buildHospitalList();
+    suggestions = all.filter(h => h.toLowerCase().includes(term.toLowerCase())).slice(0, 8);
 
     if (suggestions.length === 0) {
       suggestionsEl.classList.remove("visible");
@@ -208,21 +202,29 @@ function initSearch() {
     suggestionsEl.classList.add("visible");
 
     suggestionsEl.querySelectorAll(".suggestion-item").forEach(item => {
-      item.addEventListener("click", () => {
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
         input.value = item.dataset.name;
         suggestionsEl.classList.remove("visible");
-        renderLive();
+        onSearch();
       });
+    });
+  }
+
+  function updateHighlight() {
+    if (!suggestionsEl) return;
+    suggestionsEl.querySelectorAll(".suggestion-item").forEach((item, i) => {
+      item.classList.toggle("highlighted", i === highlightedIndex);
     });
   }
 
   input.addEventListener("input", () => {
     showSuggestions(input.value);
-    renderLive();
+    onSearch();
   });
 
   input.addEventListener("keydown", (e) => {
-    if (!suggestionsEl.classList.contains("visible")) return;
+    if (!suggestionsEl || !suggestionsEl.classList.contains("visible")) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       highlightedIndex = Math.min(highlightedIndex + 1, suggestions.length - 1);
@@ -235,38 +237,32 @@ function initSearch() {
       e.preventDefault();
       input.value = suggestions[highlightedIndex];
       suggestionsEl.classList.remove("visible");
-      renderLive();
+      onSearch();
     } else if (e.key === "Escape") {
       suggestionsEl.classList.remove("visible");
     }
   });
 
   input.addEventListener("blur", () => {
-    setTimeout(() => suggestionsEl.classList.remove("visible"), 200);
+    setTimeout(() => { if (suggestionsEl) suggestionsEl.classList.remove("visible"); }, 200);
   });
-
-  function updateHighlight() {
-    suggestionsEl.querySelectorAll(".suggestion-item").forEach((item, i) => {
-      item.classList.toggle("highlighted", i === highlightedIndex);
-    });
-  }
 }
 
-// ─── Load data ───────────────────────────────────────────────────────────────
+// ─── Load all data ───────────────────────────────────────────────────────────
 async function loadAllData() {
   const promises = [];
 
-  for (const [state, url] of Object.entries(LIVE_SOURCES)) {
-    if (url) promises.push(loadCSV(`live_${state}`, url));
+  promises.push(loadCSV("qld_hospitals", QLD_HOSPITALS_URL));
+  for (const [state, url] of Object.entries(LIVE_URLS)) {
+    promises.push(loadCSV(`live_${state}`, url));
   }
-
-  for (const [tab, url] of Object.entries(HIST_SOURCES)) {
+  for (const [tab, url] of Object.entries(HIST_URLS)) {
     promises.push(loadCSV(`hist_${tab}`, url));
   }
 
   await Promise.allSettled(promises);
 
-  // Build the "all" live dataset by combining QLD + NSW
+  // Build the combined "all" live dataset
   buildAllLive();
 
   updateLastUpdated();
@@ -280,22 +276,27 @@ function loadCSV(key, url) {
       download: true,
       header: true,
       skipEmptyLines: true,
-      complete: (results) => { tableData[key] = results.data; resolve(); },
-      error: () => { tableData[key] = null; resolve(); }
+      complete: (results) => {
+        tableData[key] = results.data;
+        resolve();
+      },
+      error: () => {
+        tableData[key] = null;
+        resolve();
+      }
     });
   });
 }
 
-// ─── Combine QLD + NSW into "all" ────────────────────────────────────────────
+// ─── Build combined live data (QLD only for now) ─────────────────────────────
 function buildAllLive() {
   const all = [];
-
-  // QLD
   const qld = tableData["live_qld"];
-  const qldHospitals = tableData["qld_hospitals"];
-  if (qld && qldHospitals) {
+  const hospitals = tableData["qld_hospitals"];
+
+  if (qld && hospitals) {
     const nameMap = {};
-    for (const h of qldHospitals) {
+    for (const h of hospitals) {
       const code = String(h["facility_code"] || "").trim();
       const name = h["name"] || "";
       if (code && name) nameMap[code] = name;
@@ -313,31 +314,18 @@ function buildAllLive() {
     }
   }
 
-  // NSW
-  const nsw = tableData["live_nsw"];
-  if (nsw) {
-    for (const row of nsw) {
-      all.push({
-        hospital: row["hospital"] || "Unknown",
-        state: "NSW",
-        waiting: row["patient_wait_count"] || "—",
-        avg_wait: "—",
-        updated: row["source_updated_utc"] || "—",
-      });
-    }
-  }
-
   tableData["live_all"] = all;
+  tableData["live_qld"] = all; // QLD button shows the same data
 }
 
-// ─── LIVE TABLE ──────────────────────────────────────────────────────────────
+// ─── Render LIVE table ───────────────────────────────────────────────────────
 function renderLive() {
   const table = document.getElementById("table-live");
   const loading = document.getElementById("loading-live");
   const disclaimer = document.getElementById("disclaimer");
   if (!table || !loading) return;
 
-  // Show/hide disclaimer
+  // Show disclaimer for states without live data
   if (DISCLAIMER[liveState]) {
     disclaimer.style.display = "flex";
     document.getElementById("disclaimer-state").textContent = DISCLAIMER[liveState].state;
@@ -348,7 +336,7 @@ function renderLive() {
   }
   disclaimer.style.display = "none";
 
-  const rows = tableData[`live_${liveState}`];
+  const rows = tableData[`live_${liveState}`] || tableData["live_all"];
 
   if (rows === undefined) {
     loading.textContent = "Loading data…";
@@ -357,9 +345,9 @@ function renderLive() {
     return;
   }
 
-  let filtered = rows || [];
+  let filtered = Array.isArray(rows) ? [...rows] : [];
 
-  // Search
+  // Search filter
   const term = (document.getElementById("search")?.value || "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(r =>
@@ -367,7 +355,7 @@ function renderLive() {
     );
   }
 
-  if (rows === null || filtered.length === 0) {
+  if (filtered.length === 0) {
     loading.textContent = term ? "No matches found." : "Data not yet available.";
     loading.style.display = "block";
     table.style.display = "none";
@@ -375,25 +363,6 @@ function renderLive() {
   }
 
   // Sort
-  if (liveSortCol >= 0) {
-    const cols = ["hospital", "state", "waiting", "avg_wait", "updated"];
-    const colKey = cols[liveSortCol];
-    if (colKey) {
-      filtered.sort((a, b) => {
-        const aVal = a[colKey] || "", bVal = b[colKey] || "";
-        const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
-        if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
-        return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
-      });
-    }
-  }
-
-  const countEl = document.getElementById("result-count");
-  if (countEl) countEl.textContent = `${filtered.length} hospitals`;
-
-  loading.style.display = "none";
-  table.style.display = "table";
-
   const LIVE_COLS = [
     { key: "hospital", label: "Hospital" },
     { key: "state", label: "State" },
@@ -402,11 +371,26 @@ function renderLive() {
     { key: "updated", label: "Updated" },
   ];
 
+  if (liveSortCol >= 0 && liveSortCol < LIVE_COLS.length) {
+    const colKey = LIVE_COLS[liveSortCol].key;
+    filtered.sort((a, b) => {
+      const aVal = a[colKey] || "", bVal = b[colKey] || "";
+      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+      if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
+      return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    });
+  }
+
+  const countEl = document.getElementById("result-count");
+  if (countEl) countEl.textContent = `${filtered.length} hospitals`;
+
+  loading.style.display = "none";
+  table.style.display = "table";
+
+  // Build thead
   const thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + LIVE_COLS.map((c, i) =>
-    `<th data-col="${i}">${c.label} <span class="sort-arrow">${
-      i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕"
-    }</span></th>`
+    `<th data-col="${i}">${c.label} <span class="sort-arrow">${i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕"}</span></th>`
   ).join("") + "</tr>";
 
   thead.querySelectorAll("th").forEach(th => {
@@ -418,21 +402,20 @@ function renderLive() {
     });
   });
 
+  // Build tbody
   const displayRows = filtered.slice(0, 500);
   const tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(r =>
     "<tr>" + LIVE_COLS.map(c => {
-      const val = r[c.key] || "—";
-      const cls = getLiveCellClass(c.key, val);
-      const display = c.key === "avg_wait" ? formatValue("wait_minutes", val) : escapeHtml(val);
-      return `<td class="${cls}">${c.key === "avg_wait" ? display : escapeHtml(val)}</td>`;
+      const rawVal = r[c.key] || "—";
+      const cls = getLiveCellClass(c.key, rawVal);
+      const display = c.key === "avg_wait" ? formatValue("wait_minutes", rawVal) : escapeHtml(String(rawVal));
+      return `<td class="${cls}">${display}</td>`;
     }).join("") + "</tr>"
   ).join("");
 
   if (filtered.length > 500) {
-    tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:var(--color-ink-muted);">
-      Showing 500 of ${filtered.length}. Refine your search.
-    </td></tr>`;
+    tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:var(--color-ink-muted);">Showing 500 of ${filtered.length}. Refine your search.</td></tr>`;
   }
 }
 
@@ -452,7 +435,7 @@ function getLiveCellClass(key, val) {
   return "";
 }
 
-// ─── HISTORICAL TABLES ───────────────────────────────────────────────────────
+// ─── Render HISTORICAL tables ────────────────────────────────────────────────
 function renderHistorical() {
   const table = document.getElementById(`table-${histSubTab}`);
   const loading = document.getElementById(`loading-${histSubTab}`);
@@ -467,16 +450,23 @@ function renderHistorical() {
     return;
   }
 
-  let filtered = rows || [];
+  if (!Array.isArray(rows) || rows.length === 0) {
+    loading.textContent = "Data not yet available.";
+    loading.style.display = "block";
+    table.style.display = "none";
+    return;
+  }
+
+  let filtered = [...rows];
 
   // Filter to latest year
-  if (filtered.length > 0 && filtered[0]["year"]) {
+  if (filtered[0]["year"]) {
     const years = [...new Set(filtered.map(r => String(r["year"])))].sort();
     const latestYear = years[years.length - 1];
     filtered = filtered.filter(r => String(r["year"]) === latestYear);
   }
 
-  // Search
+  // Search filter
   const term = (document.getElementById("search-historical")?.value || "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(row =>
@@ -484,19 +474,21 @@ function renderHistorical() {
     );
   }
 
-  if (rows === null || filtered.length === 0) {
-    loading.textContent = term ? "No matches found." : "Data not yet available.";
+  if (filtered.length === 0) {
+    loading.textContent = term ? "No matches found." : "No data for this filter.";
     loading.style.display = "block";
     table.style.display = "none";
     return;
   }
 
+  // Get visible columns
+  const headers = Object.keys(filtered[0]).filter(h => friendlyName(h) !== "");
+
   // Sort
-  if (histSortCol >= 0) {
-    const headers = getVisibleHeaders(filtered[0]);
+  if (histSortCol >= 0 && histSortCol < headers.length) {
     const colName = headers[histSortCol];
     filtered.sort((a, b) => {
-      const aVal = a[colName], bVal = b[colName];
+      const aVal = a[colName] ?? "", bVal = b[colName] ?? "";
       const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
       if (!isNaN(aNum) && !isNaN(bNum)) return histSortAsc ? aNum - bNum : bNum - aNum;
       return histSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
@@ -509,13 +501,10 @@ function renderHistorical() {
   loading.style.display = "none";
   table.style.display = "table";
 
-  const headers = getVisibleHeaders(filtered[0]);
-
+  // Build thead
   const thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + headers.map((h, i) =>
-    `<th data-col="${i}">${friendlyName(h)} <span class="sort-arrow">${
-      i === histSortCol ? (histSortAsc ? "▲" : "▼") : "↕"
-    }</span></th>`
+    `<th data-col="${i}">${friendlyName(h)} <span class="sort-arrow">${i === histSortCol ? (histSortAsc ? "▲" : "▼") : "↕"}</span></th>`
   ).join("") + "</tr>";
 
   thead.querySelectorAll("th").forEach(th => {
@@ -527,6 +516,7 @@ function renderHistorical() {
     });
   });
 
+  // Build tbody
   const displayRows = filtered.slice(0, 500);
   const tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(row =>
@@ -539,44 +529,36 @@ function renderHistorical() {
   ).join("");
 
   if (filtered.length > 500) {
-    tbody.innerHTML += `<tr><td colspan="${headers.length}" style="text-align:center;color:var(--color-ink-muted);">
-      Showing 500 of ${filtered.length}. Refine your search.
-    </td></tr>`;
+    tbody.innerHTML += `<tr><td colspan="${headers.length}" style="text-align:center;color:var(--color-ink-muted);">Showing 500 of ${filtered.length}. Refine your search.</td></tr>`;
   }
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function getVisibleHeaders(row) {
-  return Object.keys(row).filter(h => friendlyName(h) !== "");
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function getWaitClass(col, val) {
   const num = parseFloat(val);
   if (isNaN(num)) return "";
-  const isWait = /wait|minutes/i.test(col);
-  const isPercent = /pct|percent|share|proportion/i.test(col);
-  if (isWait && num > 0 && num < 1440) {
+  if (/wait|minutes/i.test(col) && num > 0 && num < 1440) {
     if (num > 360) return "val-bad";
     if (num > 120) return "val-warn";
     return "val-good";
   }
-  if (isWait && num >= 1440) {
+  if (/wait|days/i.test(col) && num >= 1440) {
     if (num > 180) return "val-bad";
     if (num > 60) return "val-warn";
     return "val-good";
   }
-  if (isPercent) {
+  if (/pct|percent|share|proportion/i.test(col)) {
     if (num < 50) return "val-bad";
     if (num < 75) return "val-warn";
     return "val-good";
   }
   return "";
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = String(str ?? "");
+  return div.innerHTML;
 }
 
 function updateLastUpdated() {
