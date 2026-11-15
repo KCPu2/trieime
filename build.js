@@ -20,7 +20,6 @@ if (fs.existsSync(DATA_DIR)) {
   }
 }
 
-// Generate hospital pages for SEO
 const pages = [];
 const BASE_URL = process.env.URL || "https://trietime.pages.dev";
 
@@ -42,106 +41,63 @@ function addPage(name, state, label, rows, headers, sourceUrl) {
   if (!slug || rows.length === 0) return;
   const dir = path.join(OUT_DIR, slug);
   fs.mkdirSync(dir, { recursive: true });
-  const displayHeaders = headers.map(h => h.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()));
-  const thead = displayHeaders.map(h => `<th>${esc(h)}</th>`).join("");
-  const tbody = rows.map(r => "<tr>" + headers.map(h => `<td>${esc(r[h] ?? "")}</td>`).join("") + "</tr>").join("\n");
-  const title = `${name} — ${label} | TriageTime`;
-  const desc = `${label} at ${name}, ${state}, Australia. Free, open data.`;
-  const html = `<!DOCTYPE html>
-<html lang="en-AU"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>${esc(title)}</title><meta name="description" content="${esc(desc)}">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css"></head>
-<body><header><div class="container"><div class="logo-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M10 2h4a1 1 0 0 1 1 1v6h6a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-6v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h6V3a1 1 0 0 1 1-1z" fill="white"/></svg></div>
-<div class="logo-text"><h1 class="logo">TriageTime</h1></div></div></header>
-<main class="container"><nav style="margin:1rem 0;"><a href="/">← All hospitals</a></nav>
-<h2>${esc(name)}</h2><p class="tab-desc">${esc(label)} — ${esc(state)}, Australia.</p>
-<div class="table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
-<p style="margin-top:1rem;font-size:0.8rem;color:var(--color-ink-muted);">Source: <a href="${sourceUrl}" rel="noopener" target="_blank">official government data</a>.</p></main>
-<footer><div class="container"><p>TriageTime — Free. Open data.</p></div></footer></body></html>`;
+  const displayHeaders = headers.map(function(h) { return h.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()); });
+  const thead = displayHeaders.map(function(h) { return "<th>" + esc(h) + "</th>"; }).join("");
+  const tbody = rows.map(function(r) { return "<tr>" + headers.map(function(h) { return "<td>" + esc(r[h] !== undefined ? r[h] : "") + "</td>"; }).join("") + "</tr>"; }).join("\n");
+  const title = name + " — " + label + " | TriageTime";
+  const desc = label + " at " + name + ", " + state + ", Australia. Free, open data.";
+  const html = '<!DOCTYPE html><html lang="en-AU"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>' + esc(title) + '</title><meta name="description" content="' + esc(desc) + '"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css"></head><body><header><div class="container"><div class="logo-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M10 2h4a1 1 0 0 1 1 1v6h6a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-6v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h6V3a1 1 0 0 1 1-1z" fill="white"/></svg></div><div class="logo-text"><h1 class="logo">TriageTime</h1></div></div></header><main class="container"><nav style="margin:1rem 0;"><a href="/">← All hospitals</a></nav><h2>' + esc(name) + '</h2><p class="tab-desc">' + esc(label) + ' — ' + esc(state) + ', Australia.</p><div class="table-wrap"><table><thead><tr>' + thead + '</tr></thead><tbody>' + tbody + '</tbody></table></div><p style="margin-top:1rem;font-size:0.8rem;color:var(--color-ink-muted);">Source: <a href="' + sourceUrl + '" rel="noopener" target="_blank">official government data</a>.</p></main><footer><div class="container"><p>TriageTime — Free. Open data.</p></div></footer></body></html>';
   fs.writeFileSync(path.join(dir, "index.html"), html);
   if (!pages.includes(slug)) pages.push(slug);
 }
 
 // QLD Live
-{
-  const live = readCSV("au_qld_live.csv");
-  const hospitals = readCSV("au_qld_hospitals.csv");
-  if (live && hospitals) {
-    const nameMap = {};
-    for (const h of hospitals) {
-      const code = String(h["facility_code"] || "").trim();
-      const name = h["name"] || "";
-      if (code && name) nameMap[code] = name;
-    }
-    const byHospital = {};
-    for (const row of live) {
-      const code = String(row["facility_code"] || "").trim();
-      const name = nameMap[code] || `Facility ${code}`;
-      if (!byHospital[name]) byHospital[name] = [];
-      byHospital[name].push(row);
-    }
-    const headers = ["data_updated", "waiting", "median_wait_all_categories", "data_status"];
-    for (const [name, rows] of Object.entries(byHospital)) {
-      addPage(name, "QLD", "ED Wait Times (Live)", rows, headers, "https://publicdata.au/d/qld-emergency-department-waits-now/");
-    }
+const live = readCSV("au_qld_live.csv");
+const hospitals = readCSV("au_qld_hospitals.csv");
+if (live && hospitals) {
+  const nameMap = {};
+  for (const h of hospitals) {
+    const code = String(h["facility_code"] || "").trim().padStart(5, "0");
+    const name = h["facility_name"] || h["name"] || "";
+    if (code && name) nameMap[code] = name;
+  }
+  const byHospital = {};
+  for (const row of live) {
+    const code = String(row["facility_code"] || "").trim().padStart(5, "0");
+    const name = nameMap[code] || "Facility " + code;
+    if (!byHospital[name]) byHospital[name] = [];
+    byHospital[name].push(row);
+  }
+  const headers = ["data_updated", "waiting", "median_wait_all_categories", "median_wait_categories_4_5", "data_status"];
+  for (const [name, rows] of Object.entries(byHospital)) {
+    addPage(name, "QLD", "ED Wait Times (Live)", rows, headers, "https://publicdata.au/d/qld-emergency-department-waits-now/");
   }
 }
 
 // AU ED
-{
-  const data = readCSV("au_ed_time_in_ed.csv");
-  if (data) {
-    const years = [...new Set(data.map(r => String(r["year"])))].sort();
-    const latest = years[years.length - 1];
-    const filtered = data.filter(r => String(r["year"]) === latest);
-    const headers = Object.keys(filtered[0]).filter(h => !/row_id|_id/i.test(h));
-    const nameCol = headers.find(h => /hospital|reporting_unit|name/i.test(h)) || headers[0];
-    const stateCol = headers.find(h => /state|territory/i.test(h)) || "";
-    const byHospital = {};
-    for (const row of filtered) {
-      const name = row[nameCol] || "Unknown";
-      if (!byHospital[name]) byHospital[name] = [];
-      byHospital[name].push(row);
-    }
-    for (const [name, rows] of Object.entries(byHospital)) {
-      const state = stateCol ? (rows[0][stateCol] || "AU") : "AU";
-      addPage(name, state, `ED Waits (${latest})`, rows, headers, "https://publicdata.au/d/au-ed-time-in-ed/");
-    }
+const edData = readCSV("au_ed_time_in_ed.csv");
+if (edData) {
+  const years = [...new Set(edData.map(function(r) { return String(r["year"]); }))].sort();
+  const latest = years[years.length - 1];
+  const filtered = edData.filter(function(r) { return String(r["year"]) === latest; });
+  const headers = Object.keys(filtered[0]).filter(function(h) { return !/row_id|_id/i.test(h); });
+  const nameCol = headers.find(function(h) { return /hospital|reporting_unit|name/i.test(h); }) || headers[0];
+  const stateCol = headers.find(function(h) { return /state|territory/i.test(h); }) || "";
+  const byHospital = {};
+  for (const row of filtered) {
+    const name = row[nameCol] || "Unknown";
+    if (!byHospital[name]) byHospital[name] = [];
+    byHospital[name].push(row);
+  }
+  for (const [name, rows] of Object.entries(byHospital)) {
+    const state = stateCol ? (rows[0][stateCol] || "AU") : "AU";
+    addPage(name, state, "ED Waits (" + latest + ")", rows, headers, "https://publicdata.au/d/au-ed-time-in-ed/");
   }
 }
 
-// AU Surgical
-{
-  const data = readCSV("au_surgical_waits.csv");
-  if (data) {
-    const years = [...new Set(data.map(r => String(r["year"])))].sort();
-    const latest = years[years.length - 1];
-    const filtered = data.filter(r => String(r["year"]) === latest);
-    const byHospital = {};
-    for (const row of filtered) {
-      const name = row["reporting_unit"] || "Unknown";
-      if (!byHospital[name]) byHospital[name] = [];
-      byHospital[name].push(row);
-    }
-    const headers = ["state", "urgency_category", "surgeries", "median_wait_days", "peer_group_median_days", "share_within_recommended_time"];
-    for (const [name, rows] of Object.entries(byHospital)) {
-      const state = rows[0]["state"] || "AU";
-      addPage(name, state, `Surgical Waits (${latest})`, rows, headers, "https://publicdata.au/d/au-elective-surgery-waiting-times/");
-    }
-  }
-}
-
-// Sitemap
 const today = new Date().toISOString().split("T")[0];
-const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>${BASE_URL}/</loc><lastmod>${today}</lastmod><priority>1.0</priority></url>
-  ${pages.map(s => `<url><loc>${BASE_URL}/${s}/</loc><lastmod>${today}</lastmod><priority>0.8</priority></url>`).join("\n  ")}
-</urlset>`;
+const sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>' + BASE_URL + '/</loc><lastmod>' + today + '</lastmod><priority>1.0</priority></url>\n  ' + pages.map(function(s) { return '<url><loc>' + BASE_URL + '/' + s + '/</loc><lastmod>' + today + '</lastmod><priority>0.8</priority></url>'; }).join("\n  ") + '\n</urlset>';
 fs.writeFileSync(path.join(OUT_DIR, "sitemap.xml"), sitemap);
+fs.writeFileSync(path.join(OUT_DIR, "robots.txt"), "User-agent: *\nAllow: /\n\nSitemap: " + BASE_URL + "/sitemap.xml\n");
 
-fs.writeFileSync(path.join(OUT_DIR, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${BASE_URL}/sitemap.xml\n`);
-
-console.log(`Build complete: ${pages.length} hospital pages.`);   
+console.log("Build complete: " + pages.length + " hospital pages.");   
