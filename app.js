@@ -1,9 +1,9 @@
 /**
- * TriageTime — Complete Application
- * Live ED (QLD + NSW) + Historical ED + Smart Search + Load More
+ * TriageTime — v6
+ * Country tabs → Section tabs (Live/Historical) → State filter
+ * No Typical Wait. No peer group. No 90th percentile. No markers.
  */
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 const PAGE_SIZE = 500;
 
 const COLUMN_MAP = {
@@ -11,7 +11,6 @@ const COLUMN_MAP = {
   "data_updated": "Updated",
   "waiting": "Waiting Now",
   "median_wait_all_categories": "Current Wait",
-  "median_wait_categories_4_5": "Typical Wait",
   "data_status": "Status",
   "data_delay_hours": "",
   "suppressed": "",
@@ -24,17 +23,26 @@ const COLUMN_MAP = {
   "state": "State",
   "reporting_unit": "Hospital",
   "reporting_unit_type": "",
-  "peer_group": "",
   "year": "Year",
   "urgency_category": "Urgency",
   "triage_category": "Urgency",
   "median_wait_minutes": "Median Wait",
-  "p90_wait_minutes": "90th Pctl Wait",
   "proportion_seen_on_time": "% Seen On Time",
-  "proportion_left_within_4_hours": "% Left Within 4 Hrs",
   "median_time_in_ed_minutes": "Median Time in ED",
-  "p90_time_in_ed_minutes": "90th Pctl Time in ED",
 };
+
+// Columns to HIDE from historical data
+const HIDE_COLS = [
+  "peer_group",
+  "peer_group_median_days",
+  "share_within_recommended_time",
+  "p90_wait_minutes",
+  "p90_time_in_ed_minutes",
+  "proportion_left_within_4_hours",
+  "reporting_unit_type",
+  "row_id",
+  "_id",
+];
 
 const DISCLAIMER = {
   vic: { state: "VIC", text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports." },
@@ -51,8 +59,9 @@ const HIST_URL = "data/au_ed_time_in_ed.csv";
 const QLD_HOSPITALS_URL = "data/au_qld_hospitals.csv";
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let currentPage = "live";
-let liveState = "all";
+let currentCountry = "au";
+let currentSection = "live";
+let activeState = "all";
 let tableData = {};
 let liveSortCol = -1, liveSortAsc = true;
 let histSortCol = -1, histSortAsc = true;
@@ -67,12 +76,12 @@ function friendlyName(col) {
 
 function formatValue(col, val) {
   const num = parseFloat(val);
-  if (isNaN(num)) return String(val ?? "—");
+  if (isNaN(num)) return String(val !== undefined && val !== null ? val : "—");
   if (col === "year" && num >= 1900 && num <= 2100) return String(Math.round(num));
   if (/wait|minutes|min/i.test(col) && num > 0 && num < 1440) {
     if (num < 60) return Math.round(num) + " min";
-    const h = Math.floor(num / 60);
-    const m = Math.round(num % 60);
+    var h = Math.floor(num / 60);
+    var m = Math.round(num % 60);
     return m > 0 ? h + "h " + m + "m" : h + "h";
   }
   if (/days/i.test(col) && num > 0 && num < 3650) {
@@ -88,15 +97,15 @@ function formatValue(col, val) {
 }
 
 function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = String(str ?? "");
+  var div = document.createElement("div");
+  div.textContent = String(str !== undefined && str !== null ? str : "");
   return div.innerHTML;
 }
 
 function getLiveCellClass(key, val) {
-  const num = parseFloat(val);
+  var num = parseFloat(val);
   if (isNaN(num)) return "";
-  if (key === "avg_wait" || key === "typical_wait") {
+  if (key === "avg_wait") {
     if (num > 360) return "val-bad";
     if (num > 120) return "val-warn";
     return "val-good";
@@ -110,7 +119,7 @@ function getLiveCellClass(key, val) {
 }
 
 function getWaitClass(col, val) {
-  const num = parseFloat(val);
+  var num = parseFloat(val);
   if (isNaN(num)) return "";
   if (/wait|minutes/i.test(col) && num > 0 && num < 1440) {
     if (num > 360) return "val-bad";
@@ -144,10 +153,10 @@ function loadCSV(key, url) {
 }
 
 async function loadAllData() {
-  const promises = [];
+  var promises = [];
   promises.push(loadCSV("qld_hospitals", QLD_HOSPITALS_URL));
-  for (const [state, url] of Object.entries(LIVE_URLS)) {
-    promises.push(loadCSV("live_" + state, url));
+  for (var state in LIVE_URLS) {
+    promises.push(loadCSV("live_" + state, LIVE_URLS[state]));
   }
   promises.push(loadCSV("hist_ed", HIST_URL));
   await Promise.allSettled(promises);
@@ -158,42 +167,42 @@ async function loadAllData() {
 }
 
 function buildAllLive() {
-  const all = [];
-
-  const qld = tableData["live_qld"];
-  const hospitals = tableData["qld_hospitals"];
+  var all = [];
+  var qld = tableData["live_qld"];
+  var hospitals = tableData["qld_hospitals"];
 
   if (qld && hospitals) {
-    const nameMap = {};
-    for (const h of hospitals) {
-      const code = String(h["facility_code"] || "").trim().padStart(5, "0");
-      const name = h["facility_name"] || h["name"] || "";
+    var nameMap = {};
+    for (var i = 0; i < hospitals.length; i++) {
+      var h = hospitals[i];
+      var code = String(h["facility_code"] || "").trim().padStart(5, "0");
+      var name = h["facility_name"] || h["name"] || "";
       if (code && name) nameMap[code] = name;
     }
-    for (const row of qld) {
-      const code = String(row["facility_code"] || "").trim().padStart(5, "0");
-      const name = nameMap[code] || "Facility " + code;
+    for (var j = 0; j < qld.length; j++) {
+      var row = qld[j];
+      var code2 = String(row["facility_code"] || "").trim().padStart(5, "0");
+      var name2 = nameMap[code2] || "Facility " + code2;
       all.push({
-        hospital: name,
+        hospital: name2,
         state: "QLD",
         waiting: row["waiting"] || "—",
         avg_wait: row["median_wait_all_categories"] || "—",
-        typical_wait: row["median_wait_categories_4_5"] || "—",
         updated: row["data_updated"] || "—",
       });
     }
   }
 
-  const nsw = tableData["live_nsw"];
+  var nsw = tableData["live_nsw"];
   if (nsw && Array.isArray(nsw)) {
-    for (const row of nsw) {
+    for (var k = 0; k < nsw.length; k++) {
+      var nrow = nsw[k];
       all.push({
-        hospital: row["hospital"] || "Unknown",
+        hospital: nrow["hospital"] || "Unknown",
         state: "NSW",
-        waiting: row["patient_wait_count"] || "—",
+        waiting: nrow["patient_wait_count"] || "—",
         avg_wait: "—",
-        typical_wait: "—",
-        updated: row["source_updated_utc"] || "—",
+        updated: nrow["source_updated_utc"] || "—",
       });
     }
   }
@@ -205,16 +214,16 @@ function buildAllLive() {
 
 // ─── Render LIVE ─────────────────────────────────────────────────────────────
 function renderLive() {
-  const table = document.getElementById("table-live");
-  const loading = document.getElementById("loading-live");
-  const disclaimer = document.getElementById("disclaimer");
-  const loadMoreBtn = document.getElementById("load-more-live");
+  var table = document.getElementById("table-live");
+  var loading = document.getElementById("loading-live");
+  var disclaimer = document.getElementById("disclaimer");
+  var loadMoreBtn = document.getElementById("load-more-live");
   if (!table || !loading) return;
 
-  if (DISCLAIMER[liveState]) {
+  if (DISCLAIMER[activeState]) {
     disclaimer.style.display = "flex";
-    document.getElementById("disclaimer-state").textContent = DISCLAIMER[liveState].state;
-    document.getElementById("disclaimer-text").textContent = DISCLAIMER[liveState].text;
+    document.getElementById("disclaimer-state").textContent = DISCLAIMER[activeState].state;
+    document.getElementById("disclaimer-text").textContent = DISCLAIMER[activeState].text;
     table.style.display = "none";
     loading.style.display = "none";
     if (loadMoreBtn) loadMoreBtn.style.display = "none";
@@ -222,7 +231,7 @@ function renderLive() {
   }
   disclaimer.style.display = "none";
 
-  const rows = tableData["live_" + liveState] || tableData["live_all"];
+  var rows = tableData["live_" + activeState] || tableData["live_all"];
 
   if (rows === undefined) {
     loading.textContent = "Loading data…";
@@ -232,9 +241,9 @@ function renderLive() {
     return;
   }
 
-  let filtered = Array.isArray(rows) ? rows.slice() : [];
+  var filtered = Array.isArray(rows) ? rows.slice() : [];
 
-  const term = (document.getElementById("search") ? document.getElementById("search").value : "").toLowerCase().trim();
+  var term = (document.getElementById("search") ? document.getElementById("search").value : "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(function(r) {
       return Object.values(r).some(function(v) { return String(v).toLowerCase().includes(term); });
@@ -249,39 +258,38 @@ function renderLive() {
     return;
   }
 
-  const LIVE_COLS = [
+  var LIVE_COLS = [
     { key: "hospital", label: "Hospital" },
     { key: "state", label: "State" },
     { key: "waiting", label: "Waiting Now" },
     { key: "avg_wait", label: "Current Wait" },
-    { key: "typical_wait", label: "Typical Wait (Cat 4–5)" },
     { key: "updated", label: "Updated" },
   ];
 
   if (liveSortCol >= 0 && liveSortCol < LIVE_COLS.length) {
-    const colKey = LIVE_COLS[liveSortCol].key;
+    var colKey = LIVE_COLS[liveSortCol].key;
     filtered.sort(function(a, b) {
-      const aVal = a[colKey] || "", bVal = b[colKey] || "";
-      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+      var aVal = a[colKey] || "", bVal = b[colKey] || "";
+      var aNum = parseFloat(aVal), bNum = parseFloat(bVal);
       if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
       return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
     });
   }
 
-  const countEl = document.getElementById("result-count");
+  var countEl = document.getElementById("result-count");
   if (countEl) countEl.textContent = filtered.length + " hospitals";
 
   loading.style.display = "none";
   table.style.display = "table";
 
-  const thead = table.querySelector("thead");
+  var thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + LIVE_COLS.map(function(c, i) {
     return '<th data-col="' + i + '">' + c.label + ' <span class="sort-arrow">' + (i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕") + "</span></th>";
   }).join("") + "</tr>";
 
   thead.querySelectorAll("th").forEach(function(th) {
     th.addEventListener("click", function() {
-      const col = parseInt(th.dataset.col);
+      var col = parseInt(th.dataset.col);
       if (liveSortCol === col) liveSortAsc = !liveSortAsc;
       else { liveSortCol = col; liveSortAsc = true; }
       liveShown = PAGE_SIZE;
@@ -289,21 +297,21 @@ function renderLive() {
     });
   });
 
-  const displayRows = filtered.slice(0, liveShown);
-  const tbody = table.querySelector("tbody");
+  var displayRows = filtered.slice(0, liveShown);
+  var tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(function(r) {
     return "<tr>" + LIVE_COLS.map(function(c) {
-      const rawVal = r[c.key] || "—";
-      const cls = getLiveCellClass(c.key, rawVal);
-      const isTime = c.key === "avg_wait" || c.key === "typical_wait";
-      const display = isTime ? formatValue("wait_minutes", rawVal) : escapeHtml(String(rawVal));
+      var rawVal = r[c.key] || "—";
+      var cls = getLiveCellClass(c.key, rawVal);
+      var isTime = c.key === "avg_wait";
+      var display = isTime ? formatValue("wait_minutes", rawVal) : escapeHtml(String(rawVal));
       return '<td class="' + cls + '">' + display + "</td>";
     }).join("") + "</tr>";
   }).join("");
 
   if (loadMoreBtn) {
     if (liveShown < filtered.length) {
-      const remaining = filtered.length - liveShown;
+      var remaining = filtered.length - liveShown;
       loadMoreBtn.textContent = "Load " + Math.min(PAGE_SIZE, remaining) + " more (" + liveShown + " of " + filtered.length + " shown)";
       loadMoreBtn.style.display = "block";
     } else {
@@ -314,12 +322,12 @@ function renderLive() {
 
 // ─── Render HISTORICAL ───────────────────────────────────────────────────────
 function renderHistorical() {
-  const table = document.getElementById("table-ed");
-  const loading = document.getElementById("loading-ed");
-  const loadMoreBtn = document.getElementById("load-more-hist");
+  var table = document.getElementById("table-ed");
+  var loading = document.getElementById("loading-ed");
+  var loadMoreBtn = document.getElementById("load-more-hist");
   if (!table || !loading) return;
 
-  const rows = tableData["hist_ed"];
+  var rows = tableData["hist_ed"];
 
   if (rows === undefined) {
     loading.textContent = "Loading data…";
@@ -337,15 +345,37 @@ function renderHistorical() {
     return;
   }
 
-  let filtered = rows.slice();
+  var filtered = rows.slice();
 
+  // Filter to latest year
   if (filtered[0]["year"]) {
-    const years = [...new Set(filtered.map(function(r) { return String(r["year"]); }))].sort();
-    const latestYear = years[years.length - 1];
+    var years = [];
+    var seen = {};
+    for (var i = 0; i < filtered.length; i++) {
+      var y = String(filtered[i]["year"]);
+      if (!seen[y]) { seen[y] = true; years.push(y); }
+    }
+    years.sort();
+    var latestYear = years[years.length - 1];
     filtered = filtered.filter(function(r) { return String(r["year"]) === latestYear; });
   }
 
-  const term = (document.getElementById("search-historical") ? document.getElementById("search-historical").value : "").toLowerCase().trim();
+  // Filter by state
+  if (activeState !== "all") {
+    var stateMap = { qld: "QLD", nsw: "NSW", vic: "VIC", wa: "WA", sa: "SA" };
+    var target = stateMap[activeState];
+    var stateCol = null;
+    var keys = Object.keys(filtered[0]);
+    for (var k = 0; k < keys.length; k++) {
+      if (/state|territory/i.test(keys[k])) { stateCol = keys[k]; break; }
+    }
+    if (stateCol) {
+      filtered = filtered.filter(function(r) { return String(r[stateCol]).toUpperCase().includes(target); });
+    }
+  }
+
+  // Search
+  var term = (document.getElementById("search-historical") ? document.getElementById("search-historical").value : "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(function(row) {
       return Object.values(row).some(function(val) { return String(val).toLowerCase().includes(term); });
@@ -353,40 +383,47 @@ function renderHistorical() {
   }
 
   if (filtered.length === 0) {
-    loading.textContent = term ? "No matches found." : "No data for this filter.";
+    loading.textContent = term ? "No matches found." : "No data for this state.";
     loading.style.display = "block";
     table.style.display = "none";
     if (loadMoreBtn) loadMoreBtn.style.display = "none";
     return;
   }
 
-  const headers = Object.keys(filtered[0]).filter(function(h) { return friendlyName(h) !== ""; });
+  // Get visible columns (hide unwanted ones)
+  var allHeaders = Object.keys(filtered[0]);
+  var headers = allHeaders.filter(function(h) {
+    if (HIDE_COLS.indexOf(h) !== -1) return false;
+    if (friendlyName(h) === "") return false;
+    return true;
+  });
 
+  // Sort
   if (histSortCol >= 0 && histSortCol < headers.length) {
-    const colName = headers[histSortCol];
+    var colName = headers[histSortCol];
     filtered.sort(function(a, b) {
-      const aVal = a[colName] !== undefined ? a[colName] : "";
-      const bVal = b[colName] !== undefined ? b[colName] : "";
-      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+      var aVal = a[colName] !== undefined ? a[colName] : "";
+      var bVal = b[colName] !== undefined ? b[colName] : "";
+      var aNum = parseFloat(aVal), bNum = parseFloat(bVal);
       if (!isNaN(aNum) && !isNaN(bNum)) return histSortAsc ? aNum - bNum : bNum - aNum;
       return histSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
     });
   }
 
-  const countEl = document.getElementById("result-count-historical");
+  var countEl = document.getElementById("result-count-historical");
   if (countEl) countEl.textContent = filtered.length + " rows";
 
   loading.style.display = "none";
   table.style.display = "table";
 
-  const thead = table.querySelector("thead");
+  var thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + headers.map(function(h, i) {
     return '<th data-col="' + i + '">' + friendlyName(h) + ' <span class="sort-arrow">' + (i === histSortCol ? (histSortAsc ? "▲" : "▼") : "↕") + "</span></th>";
   }).join("") + "</tr>";
 
   thead.querySelectorAll("th").forEach(function(th) {
     th.addEventListener("click", function() {
-      const col = parseInt(th.dataset.col);
+      var col = parseInt(th.dataset.col);
       if (histSortCol === col) histSortAsc = !histSortAsc;
       else { histSortCol = col; histSortAsc = true; }
       histShown = PAGE_SIZE;
@@ -394,21 +431,21 @@ function renderHistorical() {
     });
   });
 
-  const displayRows = filtered.slice(0, histShown);
-  const tbody = table.querySelector("tbody");
+  var displayRows = filtered.slice(0, histShown);
+  var tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(function(row) {
     return "<tr>" + headers.map(function(h) {
-      const rawVal = row[h];
-      const displayVal = formatValue(h, rawVal);
-      const cls = getWaitClass(h, rawVal);
+      var rawVal = row[h];
+      var displayVal = formatValue(h, rawVal);
+      var cls = getWaitClass(h, rawVal);
       return '<td class="' + cls + '">' + escapeHtml(displayVal) + "</td>";
     }).join("") + "</tr>";
   }).join("");
 
   if (loadMoreBtn) {
     if (histShown < filtered.length) {
-      const remaining = filtered.length - histShown;
-      loadMoreBtn.textContent = "Load " + Math.min(PAGE_SIZE, remaining) + " more (" + histShown + " of " + filtered.length + " shown)";
+      var remaining2 = filtered.length - histShown;
+      loadMoreBtn.textContent = "Load " + Math.min(PAGE_SIZE, remaining2) + " more (" + histShown + " of " + filtered.length + " shown)";
       loadMoreBtn.style.display = "block";
     } else {
       loadMoreBtn.style.display = "none";
@@ -418,24 +455,25 @@ function renderHistorical() {
 
 // ─── Smart search ────────────────────────────────────────────────────────────
 function initSmartSearch(inputId, suggestionsId, onSearch) {
-  const input = document.getElementById(inputId);
-  const suggestionsEl = suggestionsId ? document.getElementById(suggestionsId) : null;
+  var input = document.getElementById(inputId);
+  var suggestionsEl = suggestionsId ? document.getElementById(suggestionsId) : null;
   if (!input) return;
 
-  let highlightedIndex = -1;
-  let suggestions = [];
+  var highlightedIndex = -1;
+  var suggestions = [];
 
   function buildHospitalList() {
-    const names = new Set();
-    for (const key of Object.keys(tableData)) {
+    var names = new Set();
+    for (var key in tableData) {
       if (Array.isArray(tableData[key])) {
-        for (const row of tableData[key]) {
-          const name = row["hospital"] || row["name"] || row["reporting_unit"] || row["facility_name"] || row["Hospital"] || "";
-          if (name && name !== "Unknown" && !name.startsWith("Facility")) names.add(name);
+        for (var i = 0; i < tableData[key].length; i++) {
+          var row = tableData[key][i];
+          var name = row["hospital"] || row["name"] || row["reporting_unit"] || row["facility_name"] || "";
+          if (name && name !== "Unknown" && name.indexOf("Facility") !== 0) names.add(name);
         }
       }
     }
-    return [...names].sort();
+    return Array.from(names).sort();
   }
 
   function showSuggestions(term) {
@@ -446,13 +484,9 @@ function initSmartSearch(inputId, suggestionsId, onSearch) {
       highlightedIndex = -1;
       return;
     }
-    const all = buildHospitalList();
+    var all = buildHospitalList();
     suggestions = all.filter(function(h) { return h.toLowerCase().includes(term.toLowerCase()); }).slice(0, 8);
-
-    if (suggestions.length === 0) {
-      suggestionsEl.classList.remove("visible");
-      return;
-    }
+    if (suggestions.length === 0) { suggestionsEl.classList.remove("visible"); return; }
 
     highlightedIndex = -1;
     suggestionsEl.innerHTML = suggestions.map(function(name, i) {
@@ -477,29 +511,14 @@ function initSmartSearch(inputId, suggestionsId, onSearch) {
     });
   }
 
-  input.addEventListener("input", function() {
-    showSuggestions(input.value);
-    onSearch();
-  });
+  input.addEventListener("input", function() { showSuggestions(input.value); onSearch(); });
 
   input.addEventListener("keydown", function(e) {
     if (!suggestionsEl || !suggestionsEl.classList.contains("visible")) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      highlightedIndex = Math.min(highlightedIndex + 1, suggestions.length - 1);
-      updateHighlight();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      highlightedIndex = Math.max(highlightedIndex - 1, 0);
-      updateHighlight();
-    } else if (e.key === "Enter" && highlightedIndex >= 0) {
-      e.preventDefault();
-      input.value = suggestions[highlightedIndex];
-      suggestionsEl.classList.remove("visible");
-      onSearch();
-    } else if (e.key === "Escape") {
-      suggestionsEl.classList.remove("visible");
-    }
+    if (e.key === "ArrowDown") { e.preventDefault(); highlightedIndex = Math.min(highlightedIndex + 1, suggestions.length - 1); updateHighlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); highlightedIndex = Math.max(highlightedIndex - 1, 0); updateHighlight(); }
+    else if (e.key === "Enter" && highlightedIndex >= 0) { e.preventDefault(); input.value = suggestions[highlightedIndex]; suggestionsEl.classList.remove("visible"); onSearch(); }
+    else if (e.key === "Escape") { suggestionsEl.classList.remove("visible"); }
   });
 
   input.addEventListener("blur", function() {
@@ -507,18 +526,32 @@ function initSmartSearch(inputId, suggestionsId, onSearch) {
   });
 }
 
-// ─── Tab & state button handlers ─────────────────────────────────────────────
-function initMainTabs() {
+// ─── Tab handlers ────────────────────────────────────────────────────────────
+function initCountryTabs() {
   document.querySelectorAll(".main-tab-btn").forEach(function(btn) {
     btn.addEventListener("click", function() {
       document.querySelectorAll(".main-tab-btn").forEach(function(b) { b.classList.remove("active"); });
       btn.classList.add("active");
-      currentPage = btn.dataset.tab;
-      document.querySelectorAll(".page-panel").forEach(function(p) { p.classList.remove("active"); });
-      const panel = document.getElementById("page-" + currentPage);
+      currentCountry = btn.dataset.country;
+      document.querySelectorAll(".country-panel").forEach(function(p) { p.classList.remove("active"); });
+      var panel = document.getElementById("country-" + currentCountry);
       if (panel) panel.classList.add("active");
-      if (currentPage === "live") renderLive();
-      if (currentPage === "historical") renderHistorical();
+      if (currentCountry === "au") { renderLive(); renderHistorical(); }
+    });
+  });
+}
+
+function initSectionTabs() {
+  document.querySelectorAll(".section-tab-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      document.querySelectorAll(".section-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      currentSection = btn.dataset.section;
+      document.querySelectorAll(".section-panel").forEach(function(p) { p.classList.remove("active"); });
+      var panel = document.getElementById("section-" + currentSection);
+      if (panel) panel.classList.add("active");
+      if (currentSection === "live") renderLive();
+      if (currentSection === "historical") renderHistorical();
     });
   });
 }
@@ -528,35 +561,27 @@ function initStateButtons() {
     btn.addEventListener("click", function() {
       document.querySelectorAll(".state-btn").forEach(function(b) { b.classList.remove("active"); });
       btn.classList.add("active");
-      liveState = btn.dataset.state;
+      activeState = btn.dataset.state;
       liveSortCol = -1;
+      histSortCol = -1;
       liveShown = PAGE_SIZE;
+      histShown = PAGE_SIZE;
       renderLive();
+      renderHistorical();
     });
   });
 }
 
-// ─── Load more handlers ──────────────────────────────────────────────────────
 function initLoadMore() {
-  const liveBtn = document.getElementById("load-more-live");
-  const histBtn = document.getElementById("load-more-hist");
-  if (liveBtn) {
-    liveBtn.addEventListener("click", function() {
-      liveShown += PAGE_SIZE;
-      renderLive();
-    });
-  }
-  if (histBtn) {
-    histBtn.addEventListener("click", function() {
-      histShown += PAGE_SIZE;
-      renderHistorical();
-    });
-  }
+  var liveBtn = document.getElementById("load-more-live");
+  var histBtn = document.getElementById("load-more-hist");
+  if (liveBtn) liveBtn.addEventListener("click", function() { liveShown += PAGE_SIZE; renderLive(); });
+  if (histBtn) histBtn.addEventListener("click", function() { histShown += PAGE_SIZE; renderHistorical(); });
 }
 
-// ─── Footer update ───────────────────────────────────────────────────────────
+// ─── Footer ──────────────────────────────────────────────────────────────────
 function updateLastUpdated() {
-  const el = document.getElementById("last-updated");
+  var el = document.getElementById("last-updated");
   if (!el) return;
   fetch("data/meta.json")
     .then(function(r) { return r.json(); })
@@ -566,7 +591,8 @@ function updateLastUpdated() {
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function() {
-  initMainTabs();
+  initCountryTabs();
+  initSectionTabs();
   initStateButtons();
   initLoadMore();
   initSmartSearch("search", "search-suggestions", renderLive);
