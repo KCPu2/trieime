@@ -92,7 +92,8 @@ const DISCLAIMER = {
 // ─── Data source URLs ────────────────────────────────────────────────────────
 const LIVE_URLS = {
   qld: "data/au_qld_live.csv",
-};
+  nsw: "data/au_nsw_live.csv",
+};   
 
 const HIST_URLS = {
   ed: "data/au_ed_time_in_ed.csv",
