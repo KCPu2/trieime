@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TriageTime — Live ED Wait Times, Australia</title>
-  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. Who's waiting, how long, and breach rates. Free, open data.">
+  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. QLD and NSW. Plus historical ED, surgical and 4-hour rule data. Free, open data.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,12 +14,18 @@
 
 <header>
   <div class="container">
-    <h1 class="logo">TriageTime</h1>
-    <p class="tagline">Check the wait before you go.</p>
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 2h4a1 1 0 0 1 1 1v6h6a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-6v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h6V3a1 1 0 0 1 1-1z" fill="white"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <h1 class="logo">TriageTime</h1>
+      <p class="tagline">Check the wait before you go.</p>
+    </div>
   </div>
 </header>
 
-<!-- ─── Main navigation tabs ─── -->
 <nav class="main-tabs">
   <div class="container">
     <button class="main-tab-btn active" data-tab="live">Live ED Waits</button>
@@ -28,13 +34,11 @@
   </div>
 </nav>
 
-<!-- ═══════════════════════════════════════════════════════════
-     TAB 1: LIVE ED (the front page)
-     ═══════════════════════════════════════════════════════════ -->
+<!-- ═══ TAB 1: LIVE ═══ -->
 <section id="page-live" class="page-panel active">
   <div class="container">
     <h2 class="page-title">Emergency Department Waits <span class="live-badge"><span class="live-dot"></span>Live</span></h2>
-    <p class="page-desc">Current waiting times at hospitals that publish live data. "Waiting Now" is the number of people triaged and waiting to be seen. "Average Wait" is the median time. "4-Hour Breaches" is the annual rate of patients seen after 4 hours.</p>
+    <p class="page-desc">Current waiting times at hospitals that publish live data. "Waiting Now" is the number of people triaged and waiting to be seen. "Average Wait" is the median time for triage category 4 patients (QLD) or the typical wait (WA).</p>
 
     <nav class="state-bar">
       <div class="container">
@@ -49,12 +53,14 @@
 
     <div class="search-bar">
       <div class="container">
-        <input type="text" id="search" placeholder="Search hospital or city…" autocomplete="off">
+        <div class="search-wrap">
+          <input type="text" id="search" placeholder="Search hospital or city…" autocomplete="off">
+          <div id="search-suggestions" class="search-suggestions"></div>
+        </div>
         <span id="result-count" class="result-count"></span>
       </div>
     </div>
 
-    <!-- VIC/SA Disclaimer -->
     <div id="disclaimer" class="disclaimer" style="display:none;">
       <div class="disclaimer-icon">⚠️</div>
       <div>
@@ -65,17 +71,106 @@
     </div>
 
     <div class="table-wrap">
-      <table id="table-live">
-        <thead></thead>
-        <tbody></tbody>
-      </table>
+      <table id="table-live"><thead></thead><tbody></tbody></table>
     </div>
     <p class="loading" id="loading-live">Loading data…</p>
 
     <div class="live-note">
-      <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, 15 min) · WA (9 hospitals, hourly). VIC and SA do not publish live data.</p>
+      <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, every 15 min). WA, VIC and SA do not publish live data via CSV.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════   
+<!-- ═══ TAB 2: HISTORICAL ═══ -->
+<section id="page-historical" class="page-panel">
+  <div class="container">
+    <h2 class="page-title">Historical Data</h2>
+    <p class="page-desc">Annual averages from the Australian Institute of Health and Welfare. Updated quarterly. Covers all states including VIC, SA and WA.</p>
+
+    <nav class="sub-tabs">
+      <div class="container">
+        <button class="sub-tab-btn active" data-subtab="ed">ED Averages</button>
+        <button class="sub-tab-btn" data-subtab="surgical">Surgical Waits</button>
+        <button class="sub-tab-btn" data-subtab="fourhour">4-Hour Rule</button>
+      </div>
+    </nav>
+
+    <div class="search-bar">
+      <div class="container">
+        <input type="text" id="search-historical" placeholder="Search hospital or state…" autocomplete="off">
+        <span id="result-count-historical" class="result-count"></span>
+      </div>
+    </div>
+
+    <section id="subtab-ed" class="subtab-panel active">
+      <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
+      <p class="tab-desc">Average time from arrival to being seen. Most recent year. All states.</p>
+      <div class="table-wrap">
+        <table id="table-ed"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="loading" id="loading-ed">Loading data…</p>
+    </section>
+
+    <section id="subtab-surgical" class="subtab-panel">
+      <h3 class="sub-heading">Surgical Waiting Times</h3>
+      <p class="tab-desc">Time from referral to operation for elective surgery. By urgency level. All states.</p>
+      <div class="table-wrap">
+        <table id="table-surgical"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="loading" id="loading-surgical">Loading data…</p>
+    </section>
+
+    <section id="subtab-fourhour" class="subtab-panel">
+      <h3 class="sub-heading">4-Hour Rule Performance</h3>
+      <p class="tab-desc">Percentage of ED patients who left within 4 hours. Lower = more people stuck. All states.</p>
+      <div class="table-wrap">
+        <table id="table-fourhour"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="loading" id="loading-fourhour">Loading data…</p>
+    </section>
+  </div>
+</section>
+
+<!-- ═══ TAB 3: ABOUT ═══ -->
+<section id="page-about" class="page-panel">
+  <div class="container">
+    <h2 class="page-title">About TriageTime</h2>
+    <div class="about-content">
+      <h3>What this is</h3>
+      <p>A free tool showing hospital waiting times across Australia. No paywall. No signup. No tracking.</p>
+
+      <h3>Data Sources</h3>
+      <ul>
+        <li><strong>QLD Live:</strong> <a href="https://publicdata.au/d/qld-emergency-department-waits-now/" target="_blank" rel="noopener">Queensland Health</a> — CC BY 4.0</li>
+        <li><strong>NSW Live:</strong> <a href="https://www.emergencywait.health.nsw.gov.au/" target="_blank" rel="noopener">NSW Health</a> (via <a href="https://github.com/primaraau/ed-wait-log" target="_blank" rel="noopener">ed-wait-log</a>)</li>
+        <li><strong>WA Live:</strong> <a href="https://www.health.wa.gov.au/Reports-and-publications/Emergency-Department-activity/Data?report=ed_activity_now" target="_blank" rel="noopener">WA Health</a> (HTML only, no CSV)</li>
+        <li><strong>Annual (all states):</strong> <a href="https://publicdata.au" target="_blank" rel="noopener">AIHW</a> via publicdata.au — CC BY 4.0</li>
+      </ul>
+
+      <h3>What the columns mean</h3>
+      <ul>
+        <li><strong>Waiting Now</strong> — people who have been triaged and are waiting to be seen.</li>
+        <li><strong>Average Wait</strong> — the median/typical wait time. Half wait less, half wait more.</li>
+        <li><strong>Updated</strong> — when the source last refreshed this hospital's data.</li>
+      </ul>
+
+      <h3>Why no live data for WA, VIC and SA?</h3>
+      <p>WA Health publishes live data as an HTML table only (no CSV download). VIC and SA do not publish live ED data at all. Their historical data is available in the Historical Data tab.</p>
+
+      <h3>Licence</h3>
+      <p>All data belongs to the respective government publishers. This site is a convenience aggregator. Link back to original sources when citing.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Last update: <span id="last-updated">—</span></p>
+    <p>TriageTime — Free. Open data. No tracking.</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>   
