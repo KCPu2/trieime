@@ -101,7 +101,7 @@ function makePage(name, state, tabLabel, rows, headers, sourceUrl) {
 
 // ─── Page generator ──────────────────────────────────────────────────────────
 const pages = [];
-const BASE_URL = process.env.URL || "https://trietime.pages.dev"; // ← CHANGE THIS after deploy
+const BASE_URL = process.env.URL || "https://6d477cb8.trieime.pages.dev"; // ← CHANGE THIS after deploy
 
 function addPage(name, state, tabLabel, rows, headers, sourceUrl) {
   const slug = slugify(name);
