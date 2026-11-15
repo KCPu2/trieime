@@ -1,6 +1,6 @@
 /**
  * TriageTime — Complete Application
- * Live ED (main) + Historical (tab) + Smart Search
+ * Live ED (main) + Historical ED (tab) + Smart Search
  */
 
 // ─── Column name mapping ─────────────────────────────────────────────────────
@@ -25,11 +25,6 @@ const COLUMN_MAP = {
   "peer_group": "",
   "year": "Year",
   "urgency_category": "Urgency",
-  "surgeries": "Surgeries",
-  "median_wait_days": "Median Wait",
-  "peer_group_median_days": "Peer Median",
-  "share_within_recommended_time": "% Within Target",
-  "surgical_specialty": "Specialty",
   "triage_category": "Urgency",
   "median_wait_minutes": "Median Wait",
   "p90_wait_minutes": "90th Pctl Wait",
@@ -76,7 +71,6 @@ function formatValue(col, val) {
 // ─── State ───────────────────────────────────────────────────────────────────
 let currentPage = "live";
 let liveState = "all";
-let histSubTab = "ed";
 let tableData = {};
 let liveSortCol = -1, liveSortAsc = true;
 let histSortCol = -1, histSortAsc = true;
@@ -94,19 +88,13 @@ const LIVE_URLS = {
   nsw: "data/au_nsw_live.csv",
 };
 
-const HIST_URLS = {
-  ed: "data/au_ed_time_in_ed.csv",
-  surgical: "data/au_surgical_waits.csv",
-  fourhour: "data/au_ed_4hour.csv",
-};
-
+const HIST_URL = "data/au_ed_time_in_ed.csv";
 const QLD_HOSPITALS_URL = "data/au_qld_hospitals.csv";
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   initMainTabs();
   initStateButtons();
-  initHistSubTabs();
   initSmartSearch("search", "search-suggestions", renderLive);
   initSmartSearch("search-historical", null, renderHistorical);
   loadAllData();
@@ -135,21 +123,6 @@ function initStateButtons() {
       liveState = btn.dataset.state;
       liveSortCol = -1;
       renderLive();
-    });
-  });
-}
-
-function initHistSubTabs() {
-  document.querySelectorAll(".sub-tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".sub-tab-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      histSubTab = btn.dataset.subtab;
-      histSortCol = -1;
-      document.querySelectorAll(".subtab-panel").forEach(p => p.classList.remove("active"));
-      const panel = document.getElementById(`subtab-${histSubTab}`);
-      if (panel) panel.classList.add("active");
-      renderHistorical();
     });
   });
 }
@@ -253,9 +226,7 @@ async function loadAllData() {
   for (const [state, url] of Object.entries(LIVE_URLS)) {
     promises.push(loadCSV(`live_${state}`, url));
   }
-  for (const [tab, url] of Object.entries(HIST_URLS)) {
-    promises.push(loadCSV(`hist_${tab}`, url));
-  }
+  promises.push(loadCSV("hist_ed", HIST_URL));
 
   await Promise.allSettled(promises);
 
@@ -272,14 +243,8 @@ function loadCSV(key, url) {
       download: true,
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
-        tableData[key] = results.data;
-        resolve();
-      },
-      error: () => {
-        tableData[key] = null;
-        resolve();
-      }
+      complete: (results) => { tableData[key] = results.data; resolve(); },
+      error: () => { tableData[key] = null; resolve(); }
     });
   });
 }
@@ -288,7 +253,6 @@ function loadCSV(key, url) {
 function buildAllLive() {
   const all = [];
 
-  // QLD
   const qld = tableData["live_qld"];
   const hospitals = tableData["qld_hospitals"];
 
@@ -313,7 +277,6 @@ function buildAllLive() {
     }
   }
 
-  // NSW
   const nsw = tableData["live_nsw"];
   if (nsw && Array.isArray(nsw)) {
     for (const row of nsw) {
@@ -447,13 +410,13 @@ function getLiveCellClass(key, val) {
   return "";
 }
 
-// ─── Render HISTORICAL ───────────────────────────────────────────────────────
+// ─── Render HISTORICAL (ED only) ─────────────────────────────────────────────
 function renderHistorical() {
-  const table = document.getElementById(`table-${histSubTab}`);
-  const loading = document.getElementById(`loading-${histSubTab}`);
+  const table = document.getElementById("table-ed");
+  const loading = document.getElementById("loading-ed");
   if (!table || !loading) return;
 
-  const rows = tableData[`hist_${histSubTab}`];
+  const rows = tableData["hist_ed"];
 
   if (rows === undefined) {
     loading.textContent = "Loading data…";
@@ -516,11 +479,11 @@ function renderHistorical() {
 
   thead.querySelectorAll("th").forEach(th => {
     th.addEventListener("click", () => {
-        const col = parseInt(th.dataset.col);
-        if (histSortCol === col) histSortAsc = !histSortAsc;
-        else { histSortCol = col; histSortAsc = true; }
-        renderHistorical();
-      });
+      const col = parseInt(th.dataset.col);
+      if (histSortCol === col) histSortAsc = !histSortAsc;
+      else { histSortCol = col; histSortAsc = true; }
+      renderHistorical();
+    });
   });
 
   const displayRows = filtered.slice(0, 500);
