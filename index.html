@@ -26,91 +26,105 @@
   </div>
 </header>
 
+<!-- Country tabs (top level) -->
 <nav class="main-tabs">
   <div class="container">
-    <button class="main-tab-btn active" data-tab="live">Live ED Waits</button>
-    <button class="main-tab-btn" data-tab="historical">Historical Data</button>
-    <button class="main-tab-btn" data-tab="about">About</button>
+    <button class="main-tab-btn active" data-country="au">Australia</button>
+    <button class="main-tab-btn" data-country="about">About</button>
   </div>
 </nav>
 
-<!-- ═══ TAB 1: LIVE ED ═══ -->
-<section id="page-live" class="page-panel active">
-  <div class="container">
-    <h2 class="page-title">Emergency Department Waits <span class="live-badge"><span class="live-dot"></span>Live</span></h2>
-    <p class="page-desc">"Waiting Now" is the number of people triaged and waiting to be seen. "Current Wait" is the median time for all patients. "Typical Wait (Cat 4–5)" is the median for less-urgent patients. Updated daily (QLD) or every 15 min (NSW).</p>
+<!-- ═══ AUSTRALIA PANE ═══ -->
+<section id="country-au" class="country-panel active">
 
-    <nav class="state-bar">
-      <div class="container">
-        <button class="state-btn active" data-state="all">All</button>
-        <button class="state-btn" data-state="qld">QLD</button>
-        <button class="state-btn" data-state="nsw">NSW</button>
-        <button class="state-btn" data-state="wa">WA</button>
-        <button class="state-btn" data-state="vic">VIC</button>
-        <button class="state-btn" data-state="sa">SA</button>
-      </div>
-    </nav>
+  <!-- Section tabs: Live / Historical -->
+  <nav class="section-tabs">
+    <div class="container">
+      <button class="section-tab-btn active" data-section="live">Live ED Waits</button>
+      <button class="section-tab-btn" data-section="historical">Historical Data</button>
+    </div>
+  </nav>
 
-    <div class="search-bar">
-      <div class="container">
-        <div class="search-wrap">
-          <input type="text" id="search" placeholder="Search hospital or city…" autocomplete="off">
-          <div id="search-suggestions" class="search-suggestions"></div>
+  <!-- State filter (shared between Live and Historical) -->
+  <nav class="state-bar">
+    <div class="container">
+      <button class="state-btn active" data-state="all">All</button>
+      <button class="state-btn" data-state="qld">QLD</button>
+      <button class="state-btn" data-state="nsw">NSW</button>
+      <button class="state-btn" data-state="vic">VIC</button>
+      <button class="state-btn" data-state="wa">WA</button>
+      <button class="state-btn" data-state="sa">SA</button>
+    </div>
+  </nav>
+
+  <!-- LIVE SECTION -->
+  <div id="section-live" class="section-panel active">
+    <div class="container">
+      <h2 class="page-title">Emergency Department Waits <span class="live-badge"><span class="live-dot"></span>Live</span></h2>
+      <p class="page-desc">"Waiting Now" is the number of people triaged and waiting to be seen. "Current Wait" is the median time from arrival to being seen. Updated daily (QLD) or every 15 min (NSW).</p>
+
+      <div class="search-bar">
+        <div class="container">
+          <div class="search-wrap">
+            <input type="text" id="search" placeholder="Search hospital or city…" autocomplete="off">
+            <div id="search-suggestions" class="search-suggestions"></div>
+          </div>
+          <span id="result-count" class="result-count"></span>
         </div>
-        <span id="result-count" class="result-count"></span>
       </div>
-    </div>
 
-    <div id="disclaimer" class="disclaimer" style="display:none;">
-      <div class="disclaimer-icon">⚠️</div>
-      <div>
-        <p><strong>Live data is not available for <span id="disclaimer-state"></span>.</strong></p>
-        <p id="disclaimer-text"></p>
-        <p class="disclaimer-hint">Check the <strong>Historical Data</strong> tab for annual averages.</p>
+      <div id="disclaimer" class="disclaimer" style="display:none;">
+        <div class="disclaimer-icon">⚠️</div>
+        <div>
+          <p><strong>Live data is not available for <span id="disclaimer-state"></span>.</strong></p>
+          <p id="disclaimer-text"></p>
+          <p class="disclaimer-hint">Check the <strong>Historical Data</strong> section for annual averages.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="table-wrap">
-      <table id="table-live"><thead></thead><tbody></tbody></table>
-    </div>
-    <p class="loading" id="loading-live">Loading data…</p>
-    <button id="load-more-live" class="load-more-btn"></button>
+      <div class="table-wrap">
+        <table id="table-live"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="loading" id="loading-live">Loading data…</p>
+      <button id="load-more-live" class="load-more-btn"></button>
 
-    <div class="live-note">
-      <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, every 15 min). WA, VIC and SA do not publish live data via CSV.</p>
-    </div>
+      <div class="live-note">
+        <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, every 15 min). WA, VIC and SA do not publish live data via CSV.</p>
+      </div>
 
-    <div class="medical-disclaimer">
-      <p><strong>⚕️ This is not medical advice.</strong> TriageTime is an educational tool only. It does not accept responsibility for any decisions made based on this data. If you or someone else is unwell, seek prompt medical care. In an emergency, call <strong>000</strong>.</p>
+      <div class="medical-disclaimer">
+        <p><strong>⚕️ This is not medical advice.</strong> TriageTime is an educational tool only. It does not accept responsibility for any decisions made based on this data. If you or someone else is unwell, seek prompt medical care. In an emergency, call <strong>000</strong>.</p>
+      </div>
     </div>
   </div>
-</section>
 
-<!-- ═══ TAB 2: HISTORICAL ═══ -->
-<section id="page-historical" class="page-panel">
-  <div class="container">
-    <h2 class="page-title">Historical ED Data</h2>
-    <p class="page-desc">Annual averages from the Australian Institute of Health and Welfare (AIHW). Updated quarterly. Covers all states including VIC, SA and WA.</p>
+  <!-- HISTORICAL SECTION -->
+  <div id="section-historical" class="section-panel">
+    <div class="container">
+      <h2 class="page-title">Historical ED Data</h2>
+      <p class="page-desc">Annual averages from the Australian Institute of Health and Welfare (AIHW). Updated quarterly. Covers all states.</p>
 
-    <div class="search-bar">
-      <div class="container">
-        <input type="text" id="search-historical" placeholder="Search hospital or state…" autocomplete="off">
-        <span id="result-count-historical" class="result-count"></span>
+      <div class="search-bar">
+        <div class="container">
+          <input type="text" id="search-historical" placeholder="Search hospital or state…" autocomplete="off">
+          <span id="result-count-historical" class="result-count"></span>
+        </div>
       </div>
-    </div>
 
-    <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
-    <p class="tab-desc">Average time from arrival to being seen in the Emergency Department. Most recent year. All states.</p>
-    <div class="table-wrap">
-      <table id="table-ed"><thead></thead><tbody></tbody></table>
+      <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
+      <p class="tab-desc">Average time from arrival to being seen in the Emergency Department. Most recent year.</p>
+      <div class="table-wrap">
+        <table id="table-ed"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="loading" id="loading-ed">Loading data…</p>
+      <button id="load-more-hist" class="load-more-btn"></button>
     </div>
-    <p class="loading" id="loading-ed">Loading data…</p>
-    <button id="load-more-hist" class="load-more-btn"></button>
   </div>
+
 </section>
 
-<!-- ═══ TAB 3: ABOUT ═══ -->
-<section id="page-about" class="page-panel">
+<!-- ═══ ABOUT PANE ═══ -->
+<section id="country-about" class="country-panel">
   <div class="container">
     <h2 class="page-title">About TriageTime</h2>
     <div class="about-content">
@@ -128,7 +142,6 @@
       <ul>
         <li><strong>Waiting Now</strong> — the number of people who have been triaged and are waiting to be seen by a doctor.</li>
         <li><strong>Current Wait</strong> — the median time from arrival to being seen, across all triage categories.</li>
-        <li><strong>Typical Wait (Cat 4–5)</strong> — the median wait for triage categories 4 and 5 (less urgent). This is what the majority of people experience.</li>
         <li><strong>Updated</strong> — when the source last refreshed this hospital's data.</li>
       </ul>
 
