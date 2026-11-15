@@ -19,10 +19,8 @@ jobs:
       - name: Download all data
         run: |
           mkdir -p data
-
           curl -sL -o data/au_qld_live.csv "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
           curl -sL -o data/au_qld_hospitals.csv "https://publicdata.au/d/qld-emergency-department-facilities/latest/data.csv" || true
-
           MONTH=$(date -u +%Y-%m)
           curl -sL -o data/au_nsw_raw.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${MONTH}.csv" || true
           if [ ! -s data/au_nsw_raw.csv ]; then
@@ -37,9 +35,7 @@ jobs:
           else
             echo "hospital,patient_wait_count,source_updated_utc,usual_patients,bed_count" > data/au_nsw_live.csv
           fi
-
           curl -sL -o data/au_ed_time_in_ed.csv "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
-
           echo "{\"updated\":\"$(date -u +%Y-%m-%d)\"}" > data/meta.json
 
       - name: Push data
