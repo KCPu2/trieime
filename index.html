@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TriageTime — Hospital Waiting Times, Australia</title>
+  <meta name="description" content="Check emergency department and surgical waiting times at every Australian public hospital. Free, open data, updated daily.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1 class="logo">TriageTime</h1>
+    <p class="tagline">Check the wait before you go. Free. Open data.</p>
+  </div>
+</header>
+
+<nav class="state-bar">
+  <div class="container">
+    <button class="state-btn active" data-state="all">All States</button>
+    <button class="state-btn" data-state="nsw">NSW</button>
+    <button class="state-btn" data-state="vic">VIC</button>
+    <button class="state-btn" data-state="qld">QLD</button>
+    <button class="state-btn" data-state="wa">WA</button>
+    <button class="state-btn" data-state="sa">SA</button>
+  </div>
+</nav>
+
+<nav class="tabs">
+  <div class="container">
+    <button class="tab-btn active" data-tab="ed">ED Waits</button>
+    <button class="tab-btn" data-tab="surgical">Surgical Waits</button>
+    <button class="tab-btn" data-tab="fourhour">4-Hour Rule</button>
+    <button class="tab-btn" data-tab="live">Live (QLD)</button>
+    <button class="tab-btn" data-tab="about">About</button>
+  </div>
+</nav>
+
+<div class="search-bar">
+  <div class="container">
+    <input type="text" id="search" placeholder="Search hospital, city, or state…" autocomplete="off">
+    <span id="result-count" class="result-count"></span>
+  </div>
+</div>
+
+<main class="container">
+
+  <section id="tab-ed" class="tab-panel active">
+    <h2>Emergency Department Waiting Times</h2>
+    <p class="tab-desc">Median time from arrival to being seen in the Emergency Department. All Australian public hospitals.</p>
+    <div class="table-wrap">
+      <table id="table-ed"><thead></thead><tbody></tbody></table>
+    </div>
+    <p class="loading" id="loading-ed">Loading data…</p>
+  </section>
+
+  <section id="tab-surgical" class="tab-panel">
+    <h2>Surgical / Elective Waiting Times</h2>
+    <p class="tab-desc">Median time from referral to treatment for elective surgery. By urgency category and state.</p>
+    <div class="table-wrap">
+      <table id="table-surgical"><thead></thead><tbody></tbody></table>
+    </div>
+    <p class="loading" id="loading-surgical">Loading data…</p>
+  </section>
+
+  <section id="tab-fourhour" class="tab-panel">
+    <h2>4-Hour Rule Performance</h2>
+    <p class="tab-desc">Percentage of ED patients seen within 4 hours, by triage category and hospital.</p>
+    <div class="table-wrap">
+      <table id="table-fourhour"><thead></thead><tbody></tbody></table>
+    </div>
+    <p class="loading" id="loading-fourhour">Loading data…</p>
+  </section>
+
+  <section id="tab-live" class="tab-panel">
+    <h2>Live Waits — Queensland</h2>
+    <p class="tab-desc">Current waiting times at 40 Queensland public hospitals. Updated daily.</p>
+    <div class="table-wrap">
+      <table id="table-live"><thead></thead><tbody></tbody></table>
+    </div>
+    <p class="loading" id="loading-live">Loading data…</p>
+  </section>
+
+  <section id="tab-about" class="tab-panel">
+    <h2>About TriageTime</h2>
+    <div class="about-content">
+      <h3>What this is</h3>
+      <p>A free, independent tool that shows hospital waiting times across Australia. No paywall. No signup. No tracking.</p>
+
+      <h3>Data Sources</h3>
+      <ul>
+        <li><strong>QLD Live ED:</strong> <a href="https://publicdata.au/d/qld-emergency-department-waits-now/" target="_blank" rel="noopener">Queensland Health</a> via publicdata.au — CC BY 4.0</li>
+        <li><strong>AU ED (annual):</strong> <a href="https://publicdata.au/d/au-ed-time-in-ed/" target="_blank" rel="noopener">AIHW</a> via publicdata.au — CC BY 4.0</li>
+        <li><strong>AU 4-Hour Rule:</strong> <a href="https://publicdata.au/d/au-ed-patients-seen-on-time/" target="_blank" rel="noopener">AIHW</a> via publicdata.au — CC BY 4.0</li>
+        <li><strong>AU Surgical:</strong> <a href="https://publicdata.au/d/au-elective-surgery-waiting-times/" target="_blank" rel="noopener">AIHW</a> via publicdata.au — CC BY 4.0</li>
+      </ul>
+
+      <h3>How it works</h3>
+      <p>Every day at 06:00 UTC, an automated process downloads the latest CSV files from each source and republishes this site. No database. No server. Just static files.</p>
+
+      <h3>Limitations</h3>
+      <ul>
+        <li>QLD live data covers 40 hospitals. Other states publish quarterly.</li>
+        <li>Definitions of "wait time" vary by source.</li>
+        <li>Data is only as fresh as the publisher updates it.</li>
+      </ul>
+
+      <h3>Licence</h3>
+      <p>All data belongs to the respective government publishers. This site is a convenience aggregator. Link back to original sources when citing.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <p>Data refreshed daily. Last update: <span id="last-updated">—</span></p>
+    <p>TriageTime — Free. Open data. No tracking.</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>   
