@@ -1,7 +1,6 @@
 /**
- * TriageTime — v6
- * Country tabs → Section tabs (Live/Historical) → State filter
- * No Typical Wait. No peer group. No 90th percentile. No markers.
+ * TriageTime — v7
+ * Fixed NSW. Added TAS. Removed p90/peer/markers. Logo clickable.
  */
 
 const PAGE_SIZE = 500;
@@ -22,7 +21,6 @@ const COLUMN_MAP = {
   "facility_name": "Hospital",
   "state": "State",
   "reporting_unit": "Hospital",
-  "reporting_unit_type": "",
   "year": "Year",
   "urgency_category": "Urgency",
   "triage_category": "Urgency",
@@ -42,12 +40,16 @@ const HIDE_COLS = [
   "reporting_unit_type",
   "row_id",
   "_id",
+  "data_status",
+  "data_delay_hours",
+  "suppressed",
 ];
 
 const DISCLAIMER = {
   vic: { state: "VIC", text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports." },
   sa:  { state: "SA",  text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports." },
   wa:  { state: "WA",  text: "WA Health publishes live ED data as an HTML table only (no CSV). Live WA data is not available here. Check Historical Data for annual WA averages." },
+  tas: { state: "TAS", text: "Tasmanian public hospitals do not publish live ED waiting times. Check Historical Data for annual TAS averages." },
 };
 
 const LIVE_URLS = {
@@ -75,7 +77,7 @@ function friendlyName(col) {
 }
 
 function formatValue(col, val) {
-  const num = parseFloat(val);
+  var num = parseFloat(val);
   if (isNaN(num)) return String(val !== undefined && val !== null ? val : "—");
   if (col === "year" && num >= 1900 && num <= 2100) return String(Math.round(num));
   if (/wait|minutes|min/i.test(col) && num > 0 && num < 1440) {
@@ -168,6 +170,8 @@ async function loadAllData() {
 
 function buildAllLive() {
   var all = [];
+
+  // QLD
   var qld = tableData["live_qld"];
   var hospitals = tableData["qld_hospitals"];
 
@@ -193,16 +197,31 @@ function buildAllLive() {
     }
   }
 
+  // NSW — take the latest row per hospital (last occurrence in the file)
   var nsw = tableData["live_nsw"];
-  if (nsw && Array.isArray(nsw)) {
+  if (nsw && Array.isArray(nsw) && nsw.length > 0) {
+    // Detect the hospital column
+    var nswHeaders = Object.keys(nsw[0]);
+    var nswHospitalCol = nswHeaders.find(function(h) { return /hospital|name|facility/i.test(h); }) || nswHeaders[1] || nswHeaders[0];
+    var nswWaitingCol = nswHeaders.find(function(h) { return /wait|count|patients/i.test(h); }) || "";
+    var nswTimeCol = nswHeaders.find(function(h) { return /time|date|updated|timestamp/i.test(h); }) || "";
+
+    // Take last occurrence per hospital
+    var latestByHospital = {};
     for (var k = 0; k < nsw.length; k++) {
       var nrow = nsw[k];
+      var hospName = nrow[nswHospitalCol] || "Unknown";
+      latestByHospital[hospName] = nrow;
+    }
+
+    for (var hospName2 in latestByHospital) {
+      var nrow2 = latestByHospital[hospName2];
       all.push({
-        hospital: nrow["hospital"] || "Unknown",
+        hospital: hospName2,
         state: "NSW",
-        waiting: nrow["patient_wait_count"] || "—",
+        waiting: nrow2[nswWaitingCol] || "—",
         avg_wait: "—",
-        updated: nrow["source_updated_utc"] || "—",
+        updated: nrow2[nswTimeCol] || "—",
       });
     }
   }
@@ -362,15 +381,17 @@ function renderHistorical() {
 
   // Filter by state
   if (activeState !== "all") {
-    var stateMap = { qld: "QLD", nsw: "NSW", vic: "VIC", wa: "WA", sa: "SA" };
+    var stateMap = { qld: "QLD", nsw: "NSW", vic: "VIC", wa: "WA", sa: "SA", tas: "TAS" };
     var target = stateMap[activeState];
-    var stateCol = null;
-    var keys = Object.keys(filtered[0]);
-    for (var k = 0; k < keys.length; k++) {
-      if (/state|territory/i.test(keys[k])) { stateCol = keys[k]; break; }
-    }
-    if (stateCol) {
-      filtered = filtered.filter(function(r) { return String(r[stateCol]).toUpperCase().includes(target); });
+    if (target) {
+      var stateCol = null;
+      var keys = Object.keys(filtered[0]);
+      for (var k = 0; k < keys.length; k++) {
+        if (/state|territory/i.test(keys[k])) { stateCol = keys[k]; break; }
+      }
+      if (stateCol) {
+        filtered = filtered.filter(function(r) { return String(r[stateCol]).toUpperCase().includes(target); });
+      }
     }
   }
 
@@ -390,7 +411,7 @@ function renderHistorical() {
     return;
   }
 
-  // Get visible columns (hide unwanted ones)
+  // Get visible columns
   var allHeaders = Object.keys(filtered[0]);
   var headers = allHeaders.filter(function(h) {
     if (HIDE_COLS.indexOf(h) !== -1) return false;
@@ -579,6 +600,42 @@ function initLoadMore() {
   if (histBtn) histBtn.addEventListener("click", function() { histShown += PAGE_SIZE; renderHistorical(); });
 }
 
+// ─── Logo click → go to Live ED ──────────────────────────────────────────────
+function initLogoClick() {
+  var logo = document.getElementById("logo-link");
+  if (logo) {
+    logo.addEventListener("click", function(e) {
+      e.preventDefault();
+      // Switch to Australia country tab
+      document.querySelectorAll(".main-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+      var auBtn = document.querySelector('.main-tab-btn[data-country="au"]');
+      if (auBtn) auBtn.classList.add("active");
+      currentCountry = "au";
+      document.querySelectorAll(".country-panel").forEach(function(p) { p.classList.remove("active"); });
+      var auPanel = document.getElementById("country-au");
+      if (auPanel) auPanel.classList.add("active");
+
+      // Switch to Live section
+      document.querySelectorAll(".section-tab-btn").forEach(function(b) { b.classList.remove("active"); });
+      var liveBtn2 = document.querySelector('.section-tab-btn[data-section="live"]');
+      if (liveBtn2) liveBtn2.classList.add("active");
+      currentSection = "live";
+      document.querySelectorAll(".section-panel").forEach(function(p) { p.classList.remove("active"); });
+      var livePanel = document.getElementById("section-live");
+      if (livePanel) livePanel.classList.add("active");
+
+      // Reset state to "all"
+      document.querySelectorAll(".state-btn").forEach(function(b) { b.classList.remove("active"); });
+      var allBtn = document.querySelector('.state-btn[data-state="all"]');
+      if (allBtn) allBtn.classList.add("active");
+      activeState = "all";
+
+      renderLive();
+      window.scrollTo(0, 0);
+    });
+  }
+}
+
 // ─── Footer ──────────────────────────────────────────────────────────────────
 function updateLastUpdated() {
   var el = document.getElementById("last-updated");
@@ -591,6 +648,7 @@ function updateLastUpdated() {
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function() {
+  initLogoClick();
   initCountryTabs();
   initSectionTabs();
   initStateButtons();
