@@ -86,8 +86,7 @@ const DISCLAIMER = {
   vic: { state: "VIC", text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports." },
   sa:  { state: "SA",  text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports." },
   wa:  { state: "WA",  text: "WA Health publishes live ED data as an HTML table only (no CSV). Live WA data is not available here. Check Historical Data for annual WA averages." },
-  nsw: { state: "NSW", text: "NSW Health live data is not currently available as a stable CSV source. Check Historical Data for annual NSW averages." },
-};
+};   
 
 // ─── Data source URLs ────────────────────────────────────────────────────────
 const LIVE_URLS = {
