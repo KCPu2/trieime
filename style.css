@@ -393,3 +393,90 @@ footer a {
   .tab-panel h2 { font-size: var(--text-xl); }
   thead th, tbody td { padding: 0.5rem 0.75rem; }
 }   
+
+/* ─── Live section (hero) ─────────────────────────────────── */
+.live-section {
+  padding: var(--space-xl) 0 var(--space-lg);
+}
+
+.live-section .section-title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-xs);
+}
+
+.live-section .section-desc {
+  color: var(--color-ink-secondary);
+  margin-bottom: var(--space-lg);
+  max-width: 70ch;
+  font-size: var(--text-base);
+}
+
+/* ─── Historical section (visually separated) ─────────────── */
+.historical-section {
+  background: var(--color-surface);
+  border-top: 2px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
+  padding: var(--space-xl) 0;
+  margin-top: var(--space-xl);
+}
+
+.historical-section .section-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-xs);
+  color: var(--color-ink-secondary);
+}
+
+.historical-section .section-desc {
+  color: var(--color-ink-muted);
+  margin-bottom: var(--space-lg);
+  max-width: 70ch;
+  font-size: var(--text-sm);
+}
+
+.historical-section .sub-heading {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+/* ─── Disclaimer ──────────────────────────────────────────── */
+.disclaimer {
+  display: flex;
+  gap: var(--space-md);
+  background: var(--color-warn-bg);
+  border: 1px solid #f5d78e;
+  border-radius: var(--radius);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.disclaimer-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.disclaimer p {
+  color: var(--color-ink);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.disclaimer-hint {
+  color: var(--color-ink-secondary) !important;
+  font-size: var(--text-sm) !important;
+}
+
+/* ─── About section ───────────────────────────────────────── */
+.about-section {
+  padding: var(--space-xl) 0;
+}
+
+.about-section .section-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+}   
