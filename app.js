@@ -206,4 +206,279 @@ async function loadAllData() {
   renderHistorical();
 }
 
-function loa   
+function loadCSV(key, url) {
+  return new Promise((resolve) => {
+    Papa.parse(url, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => { tableData[key] = results.data; resolve(); },
+      error: () => { tableData[key] = null; resolve(); }
+    });
+  });
+}
+
+// ─── LIVE TABLE (4 fixed columns) ────────────────────────────────────────────
+function renderLive() {
+  const table = document.getElementById("table-live");
+  const loading = document.getElementById("loading-live");
+  const disclaimer = document.getElementById("disclaimer");
+  if (!table || !loading) return;
+
+  // Show/hide disclaimer
+  if (DISCLAIMER[liveState]) {
+    disclaimer.style.display = "flex";
+    document.getElementById("disclaimer-state").textContent = DISCLAIMER[liveState].state;
+    document.getElementById("disclaimer-text").textContent = DISCLAIMER[liveState].text;
+    table.style.display = "none";
+    loading.style.display = "none";
+    return;
+  }
+  disclaimer.style.display = "none";
+
+  const rawRows = tableData[`live_${liveState}`];
+
+  if (rawRows === undefined) {
+    loading.textContent = "Loading data…";
+    loading.style.display = "block";
+    table.style.display = "none";
+    return;
+  }
+
+  // Map raw rows to our 4 fixed columns
+  let rows = (rawRows || []).map(r => mapToLiveColumns(r));
+
+  // Search
+  const term = (document.getElementById("search")?.value || "").toLowerCase().trim();
+  if (term) {
+    rows = rows.filter(r =>
+      Object.values(r).some(v => String(v).toLowerCase().includes(term))
+    );
+  }
+
+  if (rawRows === null || rows.length === 0) {
+    loading.textContent = term ? "No matches found." : "Data not yet available.";
+    loading.style.display = "block";
+    table.style.display = "none";
+    return;
+  }
+
+  // Sort
+  if (liveSortCol >= 0) {
+    const colKey = LIVE_COLUMNS[liveSortCol].key;
+    rows.sort((a, b) => {
+      const aVal = a[colKey], bVal = b[colKey];
+      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+      if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
+      return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    });
+  }
+
+  const countEl = document.getElementById("result-count");
+  if (countEl) countEl.textContent = `${rows.length} hospitals`;
+
+  loading.style.display = "none";
+  table.style.display = "table";
+
+  // THEAD (fixed 4 columns)
+  const thead = table.querySelector("thead");
+  thead.innerHTML = "<tr>" + LIVE_COLUMNS.map((c, i) =>
+    `<th data-col="${i}">${c.label} <span class="sort-arrow">${
+      i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕"
+    }</span></th>`
+  ).join("") + "</tr>";
+
+  thead.querySelectorAll("th").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = parseInt(th.dataset.col);
+      if (liveSortCol === col) liveSortAsc = !liveSortAsc;
+      else { liveSortCol = col; liveSortAsc = true; }
+      renderLive();
+    });
+  });
+
+  // TBODY
+  const displayRows = rows.slice(0, 500);
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = displayRows.map(r =>
+    "<tr>" + LIVE_COLUMNS.map(c => {
+      const val = r[c.key];
+      const cls = getLiveCellClass(c.key, val);
+      return `<td class="${cls}">${escapeHtml(val)}</td>`;
+    }).join("") + "</tr>"
+  ).join("");
+
+  if (rows.length > 500) {
+    tbody.innerHTML += `<tr><td colspan="4" style="text-align:center;color:var(--color-ink-muted);">
+      Showing 500 of ${rows.length}. Refine your search.
+    </td></tr>`;
+  }
+}
+
+/**
+ * Map a raw CSV row to our 4 fixed columns.
+ * Handles QLD, NSW, and WA formats.
+ */
+function mapToLiveColumns(r) {
+  return {
+    hospital: r["hospital"] || r["name"] || r["Hospital"] || r["facility_code"] || "Unknown",
+    waiting: r["waiting"] || r["patient_wait_count"] || r["patients_waiting"] || "—",
+    avg_wait: r["median_wait_all_categories"] || r["triage_4_avg_wait"] || r["avg_wait"] || "—",
+    breaches: r["proportion_left_within_4_hours"] || r["breaches"] || "—",
+  };
+}
+
+function getLiveCellClass(key, val) {
+  const num = parseFloat(val);
+  if (isNaN(num)) return "";
+
+  if (key === "avg_wait") {
+    if (num > 360) return "val-bad";
+    if (num > 120) return "val-warn";
+    return "val-good";
+  }
+
+  if (key === "waiting") {
+    if (num > 50) return "val-bad";
+    if (num > 25) return "val-warn";
+    return "val-good";
+  }
+
+  if (key === "breaches") {
+    if (num > 50) return "val-bad";
+    if (num > 30) return "val-warn";
+    return "val-good";
+  }
+
+  return "";
+}
+
+// ─── HISTORICAL TABLES ───────────────────────────────────────────────────────
+function renderHistorical() {
+  const table = document.getElementById(`table-${histSubTab}`);
+  const loading = document.getElementById(`loading-${histSubTab}`);
+  if (!table || !loading) return;
+
+  const rows = tableData[`hist_${histSubTab}`];
+
+  if (rows === undefined) {
+    loading.textContent = "Loading data…";
+    loading.style.display = "block";
+    table.style.display = "none";
+    return;
+  }
+
+  let filtered = rows || [];
+
+  // Search
+  const term = (document.getElementById("search-historical")?.value || "").toLowerCase().trim();
+  if (term) {
+    filtered = filtered.filter(row =>
+      Object.values(row).some(val => String(val).toLowerCase().includes(term))
+    );
+  }
+
+  if (rows === null || filtered.length === 0) {
+    loading.textContent = term ? "No matches found." : "Data not yet available.";
+    loading.style.display = "block";
+    table.style.display = "none";
+    return;
+  }
+
+  // Sort
+  if (histSortCol >= 0) {
+    const headers = getVisibleHeaders(filtered[0]);
+    const colName = headers[histSortCol];
+    filtered.sort((a, b) => {
+      const aVal = a[colName], bVal = b[colName];
+      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+      if (!isNaN(aNum) && !isNaN(bNum)) return histSortAsc ? aNum - bNum : bNum - aNum;
+      return histSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    });
+  }
+
+  const countEl = document.getElementById("result-count-historical");
+  if (countEl) countEl.textContent = `${filtered.length} rows`;
+
+  loading.style.display = "none";
+  table.style.display = "table";
+
+  const headers = getVisibleHeaders(filtered[0]);
+
+  const thead = table.querySelector("thead");
+  thead.innerHTML = "<tr>" + headers.map((h, i) =>
+    `<th data-col="${i}">${friendlyName(h)} <span class="sort-arrow">${
+      i === histSortCol ? (histSortAsc ? "▲" : "▼") : "↕"
+    }</span></th>`
+  ).join("") + "</tr>";
+
+  thead.querySelectorAll("th").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = parseInt(th.dataset.col);
+      if (histSortCol === col) histSortAsc = !histSortAsc;
+      else { histSortCol = col; histSortAsc = true; }
+      renderHistorical();
+    });
+  });
+
+  const displayRows = filtered.slice(0, 500);
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = displayRows.map(row =>
+    "<tr>" + headers.map(h => {
+      const rawVal = row[h];
+      const displayVal = formatValue(h, rawVal);
+      const cls = getWaitClass(h, rawVal);
+      return `<td class="${cls}">${escapeHtml(displayVal)}</td>`;
+    }).join("") + "</tr>"
+  ).join("");
+
+  if (filtered.length > 500) {
+    tbody.innerHTML += `<tr><td colspan="${headers.length}" style="text-align:center;color:var(--color-ink-muted);">
+      Showing 500 of ${filtered.length}. Refine your search.
+    </td></tr>`;
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function getVisibleHeaders(row) {
+  return Object.keys(row).filter(h => friendlyName(h) !== "");
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function getWaitClass(col, val) {
+  const num = parseFloat(val);
+  if (isNaN(num)) return "";
+  const isWait = /wait|minutes/i.test(col);
+  const isPercent = /pct|percent|share|proportion/i.test(col);
+
+  if (isWait && num > 0 && num < 1440) {
+    if (num > 360) return "val-bad";
+    if (num > 120) return "val-warn";
+    return "val-good";
+  }
+  if (isWait && num >= 1440) {
+    if (num > 180) return "val-bad";
+    if (num > 60) return "val-warn";
+    return "val-good";
+  }
+  if (isPercent) {
+    if (num < 50) return "val-bad";
+    if (num < 75) return "val-warn";
+    return "val-good";
+  }
+  return "";
+}
+
+function updateLastUpdated() {
+  const el = document.getElementById("last-updated");
+  if (!el) return;
+  fetch("data/meta.json")
+    .then(r => r.json())
+    .then(d => { el.textContent = d.updated || "unknown"; })
+    .catch(() => { el.textContent = new Date().toLocaleDateString("en-AU"); });
+}   
