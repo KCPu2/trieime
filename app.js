@@ -1,19 +1,9 @@
 /**
- * TriageTime — v4
- * Front page = Live ED only. 4 fixed columns.
- * Historical data behind a tab. Year comma fixed.
+ * TriageTime — v5
+ * Live: QLD + NSW. Historical: all states. Smart search.
  */
 
-// ─── FIXED COLUMNS FOR LIVE TABLE ────────────────────────────────────────────
-// Exactly 4 columns, in this order. No auto-detection.
-const LIVE_COLUMNS = [
-  { key: "hospital", label: "Hospital" },
-  { key: "waiting", label: "Waiting Now" },
-  { key: "avg_wait", label: "Average Wait" },
-  { key: "breaches", label: "4-Hour Breaches" },
-];
-
-// ─── Friendly column names (for historical tables) ───────────────────────────
+// ─── Friendly column names ───────────────────────────────────────────────────
 const COLUMN_MAP = {
   "facility_code": "",
   "data_updated": "Updated",
@@ -31,9 +21,6 @@ const COLUMN_MAP = {
   "source_updated_utc": "Updated",
   "usual_patients": "Usual at This Time",
   "bed_count": "Beds",
-  "triage_4_avg_wait": "Average Wait",
-  "patients_waiting": "Waiting Now",
-  "total_patients": "Total in ED",
   "state": "State",
   "reporting_unit": "Hospital",
   "reporting_unit_type": "",
@@ -59,15 +46,13 @@ function friendlyName(col) {
   return col.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// ─── Format numbers (FIXED: no comma on years) ───────────────────────────────
+// ─── Format numbers (no comma on years) ──────────────────────────────────────
 function formatValue(col, val) {
   const num = parseFloat(val);
   if (isNaN(num)) return val;
 
-  // FIX: Don't add commas to years (4-digit numbers between 1900-2100)
-  if (num >= 1900 && num <= 2100 && col === "year") return String(num);
+  if (col === "year" && num >= 1900 && num <= 2100) return String(num);
 
-  // Minutes → "3h 5m" or "45 min"
   const isMinutes = /wait|minutes|min/i.test(col);
   if (isMinutes && num > 0 && num < 1440) {
     if (num < 60) return `${Math.round(num)} min`;
@@ -76,7 +61,6 @@ function formatValue(col, val) {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
 
-  // Days → "6 months" or "1.2 years"
   const isDays = /days|_days/i.test(col);
   if (isDays && num > 0 && num < 3650) {
     if (num < 30) return `${Math.round(num)} days`;
@@ -84,16 +68,11 @@ function formatValue(col, val) {
     return `${(num / 365).toFixed(1)} years`;
   }
 
-  // Percentages
   if (/pct|percent|share|proportion|breach/i.test(col) && num <= 100) {
     return `${num.toFixed(1)}%`;
   }
 
-  // Large numbers → comma-separated (but NOT years)
-  if (num >= 1000 && num < 1900) {
-    return num.toLocaleString("en-AU");
-  }
-
+  if (num >= 1000 && num < 1900) return num.toLocaleString("en-AU");
   return val;
 }
 
@@ -114,15 +93,18 @@ const DISCLAIMER = {
   sa: {
     state: "SA",
     text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports."
+  },
+  wa: {
+    state: "WA",
+    text: "WA Health publishes live ED data as an HTML table only (no CSV download). Live WA data is coming soon. Check the Historical Data tab for annual WA averages."
   }
 };
 
 // ─── Data sources ────────────────────────────────────────────────────────────
 const LIVE_SOURCES = {
-  all: "data/au_live_all.csv",
+  all: null, // Built by combining QLD + NSW in JS
   qld: "data/au_qld_live.csv",
   nsw: "data/au_nsw_live.csv",
-  wa: "data/au_wa_live.csv",
 };
 
 const HIST_SOURCES = {
@@ -136,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initMainTabs();
   initLiveStateButtons();
   initHistSubTabs();
-  initSearches();
+  initSearch();
   loadAllData();
 });
 
@@ -180,12 +162,94 @@ function initHistSubTabs() {
   });
 }
 
-function initSearches() {
-  const liveSearch = document.getElementById("search");
-  if (liveSearch) liveSearch.addEventListener("input", () => renderLive());
+// ─── Smart search ────────────────────────────────────────────────────────────
+function initSearch() {
+  const input = document.getElementById("search");
+  const suggestionsEl = document.getElementById("search-suggestions");
+  let highlightedIndex = -1;
+  let suggestions = [];
 
-  const histSearch = document.getElementById("search-historical");
-  if (histSearch) histSearch.addEventListener("input", () => renderHistorical());
+  if (!input || !suggestionsEl) return;
+
+  function buildHospitalList() {
+    const names = new Set();
+    for (const key of Object.keys(tableData)) {
+      if (key.startsWith("live_") && Array.isArray(tableData[key])) {
+        for (const row of tableData[key]) {
+          const name = row["hospital"] || row["name"] || row["Hospital"] || "";
+          if (name && name !== "Unknown" && name !== "Facility") names.add(name);
+        }
+      }
+    }
+    return [...names].sort();
+  }
+
+  function showSuggestions(term) {
+    if (!term || term.length < 2) {
+      suggestionsEl.classList.remove("visible");
+      suggestions = [];
+      highlightedIndex = -1;
+      return;
+    }
+    const allHospitals = buildHospitalList();
+    suggestions = allHospitals
+      .filter(h => h.toLowerCase().includes(term.toLowerCase()))
+      .slice(0, 8);
+
+    if (suggestions.length === 0) {
+      suggestionsEl.classList.remove("visible");
+      return;
+    }
+
+    highlightedIndex = -1;
+    suggestionsEl.innerHTML = suggestions.map((name, i) =>
+      `<div class="suggestion-item" data-index="${i}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`
+    ).join("");
+    suggestionsEl.classList.add("visible");
+
+    suggestionsEl.querySelectorAll(".suggestion-item").forEach(item => {
+      item.addEventListener("click", () => {
+        input.value = item.dataset.name;
+        suggestionsEl.classList.remove("visible");
+        renderLive();
+      });
+    });
+  }
+
+  input.addEventListener("input", () => {
+    showSuggestions(input.value);
+    renderLive();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (!suggestionsEl.classList.contains("visible")) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      highlightedIndex = Math.min(highlightedIndex + 1, suggestions.length - 1);
+      updateHighlight();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      highlightedIndex = Math.max(highlightedIndex - 1, 0);
+      updateHighlight();
+    } else if (e.key === "Enter" && highlightedIndex >= 0) {
+      e.preventDefault();
+      input.value = suggestions[highlightedIndex];
+      suggestionsEl.classList.remove("visible");
+      renderLive();
+    } else if (e.key === "Escape") {
+      suggestionsEl.classList.remove("visible");
+    }
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => suggestionsEl.classList.remove("visible"), 200);
+  });
+
+  function updateHighlight() {
+    suggestionsEl.querySelectorAll(".suggestion-item").forEach((item, i) => {
+      item.classList.toggle("highlighted", i === highlightedIndex);
+    });
+  }
 }
 
 // ─── Load data ───────────────────────────────────────────────────────────────
@@ -193,7 +257,7 @@ async function loadAllData() {
   const promises = [];
 
   for (const [state, url] of Object.entries(LIVE_SOURCES)) {
-    promises.push(loadCSV(`live_${state}`, url));
+    if (url) promises.push(loadCSV(`live_${state}`, url));
   }
 
   for (const [tab, url] of Object.entries(HIST_SOURCES)) {
@@ -201,6 +265,10 @@ async function loadAllData() {
   }
 
   await Promise.allSettled(promises);
+
+  // Build the "all" live dataset by combining QLD + NSW
+  buildAllLive();
+
   updateLastUpdated();
   renderLive();
   renderHistorical();
@@ -218,7 +286,51 @@ function loadCSV(key, url) {
   });
 }
 
-// ─── LIVE TABLE (4 fixed columns) ────────────────────────────────────────────
+// ─── Combine QLD + NSW into "all" ────────────────────────────────────────────
+function buildAllLive() {
+  const all = [];
+
+  // QLD
+  const qld = tableData["live_qld"];
+  const qldHospitals = tableData["qld_hospitals"];
+  if (qld && qldHospitals) {
+    const nameMap = {};
+    for (const h of qldHospitals) {
+      const code = String(h["facility_code"] || "").trim();
+      const name = h["name"] || "";
+      if (code && name) nameMap[code] = name;
+    }
+    for (const row of qld) {
+      const code = String(row["facility_code"] || "").trim();
+      const name = nameMap[code] || `Facility ${code}`;
+      all.push({
+        hospital: name,
+        state: "QLD",
+        waiting: row["waiting"] || "—",
+        avg_wait: row["median_wait_all_categories"] || "—",
+        updated: row["data_updated"] || "—",
+      });
+    }
+  }
+
+  // NSW
+  const nsw = tableData["live_nsw"];
+  if (nsw) {
+    for (const row of nsw) {
+      all.push({
+        hospital: row["hospital"] || "Unknown",
+        state: "NSW",
+        waiting: row["patient_wait_count"] || "—",
+        avg_wait: "—",
+        updated: row["source_updated_utc"] || "—",
+      });
+    }
+  }
+
+  tableData["live_all"] = all;
+}
+
+// ─── LIVE TABLE ──────────────────────────────────────────────────────────────
 function renderLive() {
   const table = document.getElementById("table-live");
   const loading = document.getElementById("loading-live");
@@ -236,27 +348,26 @@ function renderLive() {
   }
   disclaimer.style.display = "none";
 
-  const rawRows = tableData[`live_${liveState}`];
+  const rows = tableData[`live_${liveState}`];
 
-  if (rawRows === undefined) {
+  if (rows === undefined) {
     loading.textContent = "Loading data…";
     loading.style.display = "block";
     table.style.display = "none";
     return;
   }
 
-  // Map raw rows to our 4 fixed columns
-  let rows = (rawRows || []).map(r => mapToLiveColumns(r));
+  let filtered = rows || [];
 
   // Search
   const term = (document.getElementById("search")?.value || "").toLowerCase().trim();
   if (term) {
-    rows = rows.filter(r =>
+    filtered = filtered.filter(r =>
       Object.values(r).some(v => String(v).toLowerCase().includes(term))
     );
   }
 
-  if (rawRows === null || rows.length === 0) {
+  if (rows === null || filtered.length === 0) {
     loading.textContent = term ? "No matches found." : "Data not yet available.";
     loading.style.display = "block";
     table.style.display = "none";
@@ -265,24 +376,34 @@ function renderLive() {
 
   // Sort
   if (liveSortCol >= 0) {
-    const colKey = LIVE_COLUMNS[liveSortCol].key;
-    rows.sort((a, b) => {
-      const aVal = a[colKey], bVal = b[colKey];
-      const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
-      if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
-      return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
-    });
+    const cols = ["hospital", "state", "waiting", "avg_wait", "updated"];
+    const colKey = cols[liveSortCol];
+    if (colKey) {
+      filtered.sort((a, b) => {
+        const aVal = a[colKey] || "", bVal = b[colKey] || "";
+        const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+        if (!isNaN(aNum) && !isNaN(bNum)) return liveSortAsc ? aNum - bNum : bNum - aNum;
+        return liveSortAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+      });
+    }
   }
 
   const countEl = document.getElementById("result-count");
-  if (countEl) countEl.textContent = `${rows.length} hospitals`;
+  if (countEl) countEl.textContent = `${filtered.length} hospitals`;
 
   loading.style.display = "none";
   table.style.display = "table";
 
-  // THEAD (fixed 4 columns)
+  const LIVE_COLS = [
+    { key: "hospital", label: "Hospital" },
+    { key: "state", label: "State" },
+    { key: "waiting", label: "Waiting Now" },
+    { key: "avg_wait", label: "Average Wait" },
+    { key: "updated", label: "Updated" },
+  ];
+
   const thead = table.querySelector("thead");
-  thead.innerHTML = "<tr>" + LIVE_COLUMNS.map((c, i) =>
+  thead.innerHTML = "<tr>" + LIVE_COLS.map((c, i) =>
     `<th data-col="${i}">${c.label} <span class="sort-arrow">${
       i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕"
     }</span></th>`
@@ -297,59 +418,37 @@ function renderLive() {
     });
   });
 
-  // TBODY
-  const displayRows = rows.slice(0, 500);
+  const displayRows = filtered.slice(0, 500);
   const tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(r =>
-    "<tr>" + LIVE_COLUMNS.map(c => {
-      const val = r[c.key];
+    "<tr>" + LIVE_COLS.map(c => {
+      const val = r[c.key] || "—";
       const cls = getLiveCellClass(c.key, val);
-      return `<td class="${cls}">${escapeHtml(val)}</td>`;
+      const display = c.key === "avg_wait" ? formatValue("wait_minutes", val) : escapeHtml(val);
+      return `<td class="${cls}">${c.key === "avg_wait" ? display : escapeHtml(val)}</td>`;
     }).join("") + "</tr>"
   ).join("");
 
-  if (rows.length > 500) {
-    tbody.innerHTML += `<tr><td colspan="4" style="text-align:center;color:var(--color-ink-muted);">
-      Showing 500 of ${rows.length}. Refine your search.
+  if (filtered.length > 500) {
+    tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:var(--color-ink-muted);">
+      Showing 500 of ${filtered.length}. Refine your search.
     </td></tr>`;
   }
-}
-
-/**
- * Map a raw CSV row to our 4 fixed columns.
- * Handles QLD, NSW, and WA formats.
- */
-function mapToLiveColumns(r) {
-  return {
-    hospital: r["hospital"] || r["name"] || r["Hospital"] || r["facility_code"] || "Unknown",
-    waiting: r["waiting"] || r["patient_wait_count"] || r["patients_waiting"] || "—",
-    avg_wait: r["median_wait_all_categories"] || r["triage_4_avg_wait"] || r["avg_wait"] || "—",
-    breaches: r["proportion_left_within_4_hours"] || r["breaches"] || "—",
-  };
 }
 
 function getLiveCellClass(key, val) {
   const num = parseFloat(val);
   if (isNaN(num)) return "";
-
   if (key === "avg_wait") {
     if (num > 360) return "val-bad";
     if (num > 120) return "val-warn";
     return "val-good";
   }
-
   if (key === "waiting") {
     if (num > 50) return "val-bad";
     if (num > 25) return "val-warn";
     return "val-good";
   }
-
-  if (key === "breaches") {
-    if (num > 50) return "val-bad";
-    if (num > 30) return "val-warn";
-    return "val-good";
-  }
-
   return "";
 }
 
@@ -369,6 +468,13 @@ function renderHistorical() {
   }
 
   let filtered = rows || [];
+
+  // Filter to latest year
+  if (filtered.length > 0 && filtered[0]["year"]) {
+    const years = [...new Set(filtered.map(r => String(r["year"])))].sort();
+    const latestYear = years[years.length - 1];
+    filtered = filtered.filter(r => String(r["year"]) === latestYear);
+  }
 
   // Search
   const term = (document.getElementById("search-historical")?.value || "").toLowerCase().trim();
@@ -455,7 +561,6 @@ function getWaitClass(col, val) {
   if (isNaN(num)) return "";
   const isWait = /wait|minutes/i.test(col);
   const isPercent = /pct|percent|share|proportion/i.test(col);
-
   if (isWait && num > 0 && num < 1440) {
     if (num > 360) return "val-bad";
     if (num > 120) return "val-warn";
