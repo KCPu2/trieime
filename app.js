@@ -18,6 +18,7 @@ const COLUMN_MAP = {
   "hospital": "Hospital",
   "hospital_name": "Hospital",
   "name": "Hospital",
+  "facility_name": "Hospital",
   "state": "State",
   "reporting_unit": "Hospital",
   "reporting_unit_type": "",
@@ -48,10 +49,8 @@ function formatValue(col, val) {
   const num = parseFloat(val);
   if (isNaN(num)) return String(val ?? "—");
 
-  // Never add commas to years
   if (col === "year" && num >= 1900 && num <= 2100) return String(Math.round(num));
 
-  // Minutes → "3h 5m"
   if (/wait|minutes|min/i.test(col) && num > 0 && num < 1440) {
     if (num < 60) return `${Math.round(num)} min`;
     const h = Math.floor(num / 60);
@@ -59,19 +58,16 @@ function formatValue(col, val) {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   }
 
-  // Days → "6 months"
   if (/days/i.test(col) && num > 0 && num < 3650) {
     if (num < 30) return `${Math.round(num)} days`;
     if (num < 365) return `${(num / 30).toFixed(1)} months`;
     return `${(num / 365).toFixed(1)} years`;
   }
 
-  // Percentages
   if (/pct|percent|share|proportion/i.test(col) && num >= 0 && num <= 100) {
     return `${num.toFixed(1)}%`;
   }
 
-  // Large numbers (not years)
   if (num >= 1000 && num < 1900) return num.toLocaleString("en-AU");
 
   return String(val);
@@ -85,11 +81,12 @@ let tableData = {};
 let liveSortCol = -1, liveSortAsc = true;
 let histSortCol = -1, histSortAsc = true;
 
-// ─── VIC/SA/WA disclaimers ───────────────────────────────────────────────────
+// ─── Disclaimers ─────────────────────────────────────────────────────────────
 const DISCLAIMER = {
   vic: { state: "VIC", text: "The Victorian Government does not publish live ED waiting times for public hospitals. Data is only available in annual reports." },
   sa:  { state: "SA",  text: "The South Australian Government does not publish live ED waiting times for public hospitals. Data is only available in quarterly reports." },
   wa:  { state: "WA",  text: "WA Health publishes live ED data as an HTML table only (no CSV). Live WA data is not available here. Check Historical Data for annual WA averages." },
+  nsw: { state: "NSW", text: "NSW Health live data is not currently available as a stable CSV source. Check Historical Data for annual NSW averages." },
 };
 
 // ─── Data source URLs ────────────────────────────────────────────────────────
@@ -171,7 +168,7 @@ function initSmartSearch(inputId, suggestionsId, onSearch) {
     for (const key of Object.keys(tableData)) {
       if (Array.isArray(tableData[key])) {
         for (const row of tableData[key]) {
-          const name = row["hospital"] || row["name"] || row["reporting_unit"] || row["Hospital"] || "";
+          const name = row["hospital"] || row["name"] || row["reporting_unit"] || row["facility_name"] || row["Hospital"] || "";
           if (name && name !== "Unknown" && !name.startsWith("Facility")) names.add(name);
         }
       }
@@ -262,7 +259,6 @@ async function loadAllData() {
 
   await Promise.allSettled(promises);
 
-  // Build the combined "all" live dataset
   buildAllLive();
 
   updateLastUpdated();
@@ -288,7 +284,7 @@ function loadCSV(key, url) {
   });
 }
 
-// ─── Build combined live data (QLD only for now) ─────────────────────────────
+// ─── Build combined live data (QLD with hospital names) ──────────────────────
 function buildAllLive() {
   const all = [];
   const qld = tableData["live_qld"];
@@ -297,12 +293,12 @@ function buildAllLive() {
   if (qld && hospitals) {
     const nameMap = {};
     for (const h of hospitals) {
-      const code = String(h["facility_code"] || "").trim();
-      const name = h["facility_name"] || h["name"] || "";   
+      const code = String(h["facility_code"] || "").trim().padStart(5, "0");
+      const name = h["facility_name"] || h["name"] || "";
       if (code && name) nameMap[code] = name;
     }
     for (const row of qld) {
-      const code = String(row["facility_code"] || "").trim();
+      const code = String(row["facility_code"] || "").trim().padStart(5, "0");
       const name = nameMap[code] || `Facility ${code}`;
       all.push({
         hospital: name,
@@ -315,7 +311,7 @@ function buildAllLive() {
   }
 
   tableData["live_all"] = all;
-  tableData["live_qld"] = all; // QLD button shows the same data
+  tableData["live_qld"] = all;
 }
 
 // ─── Render LIVE table ───────────────────────────────────────────────────────
@@ -325,7 +321,6 @@ function renderLive() {
   const disclaimer = document.getElementById("disclaimer");
   if (!table || !loading) return;
 
-  // Show disclaimer for states without live data
   if (DISCLAIMER[liveState]) {
     disclaimer.style.display = "flex";
     document.getElementById("disclaimer-state").textContent = DISCLAIMER[liveState].state;
@@ -347,7 +342,6 @@ function renderLive() {
 
   let filtered = Array.isArray(rows) ? [...rows] : [];
 
-  // Search filter
   const term = (document.getElementById("search")?.value || "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(r =>
@@ -362,7 +356,6 @@ function renderLive() {
     return;
   }
 
-  // Sort
   const LIVE_COLS = [
     { key: "hospital", label: "Hospital" },
     { key: "state", label: "State" },
@@ -387,7 +380,6 @@ function renderLive() {
   loading.style.display = "none";
   table.style.display = "table";
 
-  // Build thead
   const thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + LIVE_COLS.map((c, i) =>
     `<th data-col="${i}">${c.label} <span class="sort-arrow">${i === liveSortCol ? (liveSortAsc ? "▲" : "▼") : "↕"}</span></th>`
@@ -402,7 +394,6 @@ function renderLive() {
     });
   });
 
-  // Build tbody
   const displayRows = filtered.slice(0, 500);
   const tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(r =>
@@ -459,14 +450,12 @@ function renderHistorical() {
 
   let filtered = [...rows];
 
-  // Filter to latest year
   if (filtered[0]["year"]) {
     const years = [...new Set(filtered.map(r => String(r["year"])))].sort();
     const latestYear = years[years.length - 1];
     filtered = filtered.filter(r => String(r["year"]) === latestYear);
   }
 
-  // Search filter
   const term = (document.getElementById("search-historical")?.value || "").toLowerCase().trim();
   if (term) {
     filtered = filtered.filter(row =>
@@ -481,10 +470,8 @@ function renderHistorical() {
     return;
   }
 
-  // Get visible columns
   const headers = Object.keys(filtered[0]).filter(h => friendlyName(h) !== "");
 
-  // Sort
   if (histSortCol >= 0 && histSortCol < headers.length) {
     const colName = headers[histSortCol];
     filtered.sort((a, b) => {
@@ -501,7 +488,6 @@ function renderHistorical() {
   loading.style.display = "none";
   table.style.display = "table";
 
-  // Build thead
   const thead = table.querySelector("thead");
   thead.innerHTML = "<tr>" + headers.map((h, i) =>
     `<th data-col="${i}">${friendlyName(h)} <span class="sort-arrow">${i === histSortCol ? (histSortAsc ? "▲" : "▼") : "↕"}</span></th>`
@@ -516,7 +502,6 @@ function renderHistorical() {
     });
   });
 
-  // Build tbody
   const displayRows = filtered.slice(0, 500);
   const tbody = table.querySelector("tbody");
   tbody.innerHTML = displayRows.map(row =>
