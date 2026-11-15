@@ -16,47 +16,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create data directory
-        run: mkdir -p data
-
-      - name: Download QLD Live ED
-        run: curl -sL -o data/au_qld_live.csv "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
-
-      - name: Download QLD Hospital Names
-        run: curl -sL -o data/au_qld_hospitals.csv "https://publicdata.au/d/qld-emergency-department-list/latest/data.csv" || true
-
-      - name: Download NSW Live ED
+      - name: Download all data
         run: |
-          MONTH=$(date -u +%Y-%m)
-          curl -sL -o data/au_nsw_live.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${MONTH}.csv" || true
-          if [ ! -s data/au_nsw_live.csv ]; then
-            LASTMONTH=$(date -u -d "last month" +%Y-%m 2>/dev/null || echo "")
-            if [ -n "$LASTMONTH" ]; then
-              curl -sL -o data/au_nsw_live.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${LASTMONTH}.csv" || true
-            fi
-          fi
-          if [ ! -s data/au_nsw_live.csv ]; then
-            echo "hospital,patient_wait_count,source_updated_utc" > data/au_nsw_live.csv
-          fi
+          mkdir -p data
+          curl -sL -o data/au_qld_live.csv "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
+          curl -sL -o data/au_qld_hospitals.csv "https://publicdata.au/d/qld-emergency-department-list/latest/data.csv" || true
+          curl -sL -o data/au_ed_time_in_ed.csv "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
+          curl -sL -o data/au_ed_4hour.csv "https://publicdata.au/d/au-ed-patients-seen-on-time/latest/data.csv" || true
+          curl -sL -o data/au_surgical_waits.csv "https://publicdata.au/d/au-elective-surgery-waiting-times/latest/data.csv" || true
+          echo "{\"updated\":\"$(date -u +%Y-%m-%d)\"}" > data/meta.json
 
-      - name: Download AU ED
-        run: curl -sL -o data/au_ed_time_in_ed.csv "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
-
-      - name: Download AU 4-Hour
-        run: curl -sL -o data/au_ed_4hour.csv "https://publicdata.au/d/au-ed-patients-seen-on-time/latest/data.csv" || true
-
-      - name: Download AU Surgical
-        run: curl -sL -o data/au_surgical_waits.csv "https://publicdata.au/d/au-elective-surgery-waiting-times/latest/data.csv" || true
-
-      - name: Write meta
-        run: echo "{\"updated\":\"$(date -u +%Y-%m-%d)\"}" > data/meta.json
-
-      - name: Commit changes
+      - name: Push data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git reset origin/main
+          git checkout -B main origin/main
           git add data/
           git diff --staged --quiet || git commit -m "data: refresh $(date -u +%Y-%m-%d)"
-          git push   
+          git push origin main   
