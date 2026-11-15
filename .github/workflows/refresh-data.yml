@@ -19,23 +19,30 @@ jobs:
       - name: Download all data
         run: |
           mkdir -p data
+
+          # QLD Live ED Waits
           curl -sL -o data/au_qld_live.csv "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
+
+          # QLD Hospital Names
           curl -sL -o data/au_qld_hospitals.csv "https://publicdata.au/d/qld-emergency-department-facilities/latest/data.csv" || true
+
+          # NSW Live ED (current month, fallback to last month)
           MONTH=$(date -u +%Y-%m)
-          curl -sL -o data/au_nsw_raw.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${MONTH}.csv" || true
-          if [ ! -s data/au_nsw_raw.csv ]; then
+          curl -sL -o data/au_nsw_live.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${MONTH}.csv" || true
+          if [ ! -s data/au_nsw_live.csv ]; then
             LASTMONTH=$(date -u -d "last month" +%Y-%m 2>/dev/null || echo "")
             if [ -n "$LASTMONTH" ]; then
-              curl -sL -o data/au_nsw_raw.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${LASTMONTH}.csv" || true
+              curl -sL -o data/au_nsw_live.csv "https://raw.githubusercontent.com/primaraau/ed-wait-log/main/data/${LASTMONTH}.csv" || true
             fi
           fi
-          if [ -s data/au_nsw_raw.csv ]; then
-            awk -F',' 'NR==1{print; next} {last[$1]=$0} END{for(k in last) print last[k]}' data/au_nsw_raw.csv > data/au_nsw_live.csv
-            rm -f data/au_nsw_raw.csv
-          else
-            echo "hospital,patient_wait_count,source_updated_utc,usual_patients,bed_count" > data/au_nsw_live.csv
+          if [ ! -s data/au_nsw_live.csv ]; then
+            echo "timestamp,hospital,patient_wait_count,usual_patients,bed_count" > data/au_nsw_live.csv
           fi
+
+          # AU ED Time in ED (all states, quarterly)
           curl -sL -o data/au_ed_time_in_ed.csv "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
+
+          # Meta
           echo "{\"updated\":\"$(date -u +%Y-%m-%d)\"}" > data/meta.json
 
       - name: Push data
