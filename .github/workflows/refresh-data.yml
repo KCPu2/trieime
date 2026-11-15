@@ -1,0 +1,59 @@
+name: Refresh Data
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      # ═══ QLD Live ED Waits (40 hospitals, daily) ═══
+      - name: Download QLD Live ED
+        run: |
+          curl -sL -o data/au_qld_live.csv \
+            "https://publicdata.au/d/qld-emergency-department-waits-now/latest/data.csv" || true
+
+      # ═══ QLD Hospital Names (for the join) ═══
+      - name: Download QLD Hospital Names
+        run: |
+          curl -sL -o data/au_qld_hospitals.csv \
+            "https://publicdata.au/d/qld-emergency-department-list/latest/data.csv" || true
+
+      # ═══ AU ED Time in ED (all states, quarterly) ═══
+      - name: Download AU ED Time in ED
+        run: |
+          curl -sL -o data/au_ed_time_in_ed.csv \
+            "https://publicdata.au/d/au-ed-time-in-ed/latest/data.csv" || true
+
+      # ═══ AU ED Patients Seen On Time / 4-Hour Rule ═══
+      - name: Download AU 4-Hour Rule
+        run: |
+          curl -sL -o data/au_ed_4hour.csv \
+            "https://publicdata.au/d/au-ed-patients-seen-on-time/latest/data.csv" || true
+
+      # ═══ AU Elective Surgery Waits (by urgency) ═══
+      - name: Download AU Surgical Waits
+        run: |
+          curl -sL -o data/au_surgical_waits.csv \
+            "https://publicdata.au/d/au-elective-surgery-waiting-times/latest/data.csv" || true
+
+      # ═══ Meta ═══
+      - name: Write meta
+        run: |
+          echo "{\"updated\":\"$(date -u +%Y-%m-%d)\"}" > data/meta.json
+
+      # ═══ Commit ═══
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --staged --quiet || git commit -m "data: refresh $(date -u +%Y-%m-%d)"
+          git push   
