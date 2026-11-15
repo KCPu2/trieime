@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TriageTime — Live ED Wait Times, Australia</title>
-  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. Plus historical ED, surgical and 4-hour rule data. Free, open data.">
+  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. Plus historical ED data. Free, open data.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -38,7 +38,7 @@
 <section id="page-live" class="page-panel active">
   <div class="container">
     <h2 class="page-title">Emergency Department Waits <span class="live-badge"><span class="live-dot"></span>Live</span></h2>
-    <p class="page-desc">"Waiting Now" is the number of people triaged and waiting to be seen. "Current Wait" is the median time for all patients. "Typical Wait (Cat 4–5)" is the median for less-urgent patients (the majority of people). Updated daily (QLD) or every 15 min (NSW).</p>
+    <p class="page-desc">"Waiting Now" is the number of people triaged and waiting to be seen. "Current Wait" is the median time for all patients. "Typical Wait (Cat 4–5)" is the median for less-urgent patients. Updated daily (QLD) or every 15 min (NSW).</p>
 
     <nav class="state-bar">
       <div class="container">
@@ -79,60 +79,31 @@
       <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, every 15 min). WA, VIC and SA do not publish live data via CSV.</p>
     </div>
 
-    <!-- Medical disclaimer -->
     <div class="medical-disclaimer">
       <p><strong>⚕️ This is not medical advice.</strong> TriageTime is an educational tool only. It does not accept responsibility for any decisions made based on this data. If you or someone else is unwell, seek prompt medical care. In an emergency, call <strong>000</strong>.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══ TAB 2: HISTORICAL ═══ -->
+<!-- ═══ TAB 2: HISTORICAL (ED only) ═══ -->
 <section id="page-historical" class="page-panel">
   <div class="container">
-    <h2 class="page-title">Historical Data</h2>
+    <h2 class="page-title">Historical ED Data</h2>
     <p class="page-desc">Annual averages from the Australian Institute of Health and Welfare (AIHW). Updated quarterly. Covers all states including VIC, SA and WA.</p>
-
-    <nav class="sub-tabs">
-      <div class="container">
-        <button class="sub-tab-btn active" data-subtab="ed">ED Averages</button>
-        <button class="sub-tab-btn" data-subtab="surgical">Surgical Waits</button>
-        <button class="sub-tab-btn" data-subtab="fourhour">4-Hour Rule</button>
-      </div>
-    </nav>
 
     <div class="search-bar">
       <div class="container">
-        <input type="text" id="search-historical" placeholder="Search hospital, state, or procedure…" autocomplete="off">
+        <input type="text" id="search-historical" placeholder="Search hospital or state…" autocomplete="off">
         <span id="result-count-historical" class="result-count"></span>
       </div>
     </div>
 
-    <section id="subtab-ed" class="subtab-panel active">
-      <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
-      <p class="tab-desc">Average time from arrival to being seen. Most recent year. All states.</p>
-      <div class="table-wrap">
-        <table id="table-ed"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-ed">Loading data…</p>
-    </section>
-
-    <section id="subtab-surgical" class="subtab-panel">
-      <h3 class="sub-heading">Surgical Waiting Times</h3>
-      <p class="tab-desc">Time from referral to operation for elective surgery. By urgency level. All states.</p>
-      <div class="table-wrap">
-        <table id="table-surgical"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-surgical">Loading data…</p>
-    </section>
-
-    <section id="subtab-fourhour" class="subtab-panel">
-      <h3 class="sub-heading">4-Hour Rule Performance</h3>
-      <p class="tab-desc">Percentage of ED patients who left within 4 hours. Lower = more people stuck. All states.</p>
-      <div class="table-wrap">
-        <table id="table-fourhour"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-fourhour">Loading data…</p>
-    </section>
+    <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
+    <p class="tab-desc">Average time from arrival to being seen in the Emergency Department. Most recent year. All states.</p>
+    <div class="table-wrap">
+      <table id="table-ed"><thead></thead><tbody></tbody></table>
+    </div>
+    <p class="loading" id="loading-ed">Loading data…</p>
   </div>
 </section>
 
