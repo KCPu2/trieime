@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TriageTime — Hospital Waiting Times, Australia</title>
-  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. Plus historical ED, surgical and 4-hour rule data. Free, open data.">
+  <title>TriageTime — Live ED Wait Times, Australia</title>
+  <meta name="description" content="Live emergency department waiting times at Australian public hospitals. Who's waiting, how long, and breach rates. Free, open data.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,21 +15,30 @@
 <header>
   <div class="container">
     <h1 class="logo">TriageTime</h1>
-    <p class="tagline">Check the wait before you go. Free. Open data.</p>
+    <p class="tagline">Check the wait before you go.</p>
   </div>
 </header>
 
-<!-- ═══════════════════════════════════════════════════════════
-     SECTION 1: LIVE (the hero)
-     ═══════════════════════════════════════════════════════════ -->
-<section class="live-section">
+<!-- ─── Main navigation tabs ─── -->
+<nav class="main-tabs">
   <div class="container">
-    <h2 class="section-title">Live Emergency Department Waits</h2>
-    <p class="section-desc">Right now, at the hospitals that publish live data. "Waiting Now" is the number of people who have been triaged and are waiting to be seen. "Median Wait" is the typical wait. Updated throughout the day.</p>
+    <button class="main-tab-btn active" data-tab="live">Live ED Waits</button>
+    <button class="main-tab-btn" data-tab="historical">Historical Data</button>
+    <button class="main-tab-btn" data-tab="about">About</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 1: LIVE ED (the front page)
+     ═══════════════════════════════════════════════════════════ -->
+<section id="page-live" class="page-panel active">
+  <div class="container">
+    <h2 class="page-title">Emergency Department Waits — Live</h2>
+    <p class="page-desc">Current waiting times at hospitals that publish live data. "Waiting Now" is the number of people triaged and waiting to be seen. "Average Wait" is the median time. "4-Hour Breaches" is the annual rate of patients seen after 4 hours.</p>
 
     <nav class="state-bar">
       <div class="container">
-        <button class="state-btn active" data-state="all">All States</button>
+        <button class="state-btn active" data-state="all">All</button>
         <button class="state-btn" data-state="qld">QLD</button>
         <button class="state-btn" data-state="nsw">NSW</button>
         <button class="state-btn" data-state="wa">WA</button>
@@ -45,122 +54,28 @@
       </div>
     </div>
 
-    <!-- VIC/SA Disclaimer (shown/hidden by JS) -->
+    <!-- VIC/SA Disclaimer -->
     <div id="disclaimer" class="disclaimer" style="display:none;">
       <div class="disclaimer-icon">⚠️</div>
       <div>
-        <p><strong>Live data is not available for <span id="disclaimer-state">this state</span>.</strong></p>
-        <p>The <span id="disclaimer-state-name">Victorian</span> Government does not publish live emergency department waiting times for public hospitals. <span id="disclaimer-alternative">You can check the Victorian health department's annual reports for historical data below.</span></p>
-        <p class="disclaimer-hint">Use the <strong>Historical Data</strong> section below for annual averages by hospital.</p>
+        <p><strong>Live data is not available for <span id="disclaimer-state"></span>.</strong></p>
+        <p id="disclaimer-text"></p>
+        <p class="disclaimer-hint">Check the <strong>Historical Data</strong> tab for annual averages.</p>
       </div>
     </div>
 
     <div class="table-wrap">
-      <table id="table-live"><thead></thead><tbody></tbody></table>
+      <table id="table-live">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
     </div>
     <p class="loading" id="loading-live">Loading data…</p>
 
     <div class="live-note">
-      <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, every 15 min) · WA (9 hospitals, hourly). VIC and SA public hospitals do not publish live data.</p>
+      <p><strong>Coverage:</strong> QLD (40 hospitals, daily) · NSW (60 hospitals, 15 min) · WA (9 hospitals, hourly). VIC and SA do not publish live data.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════
-     SECTION 2: HISTORICAL DATA (separate, clearly labelled)
-     ═══════════════════════════════════════════════════════════ -->
-<section class="historical-section">
-  <div class="container">
-    <h2 class="section-title">Historical Data</h2>
-    <p class="section-desc">Annual averages from the Australian Institute of Health and Welfare (AIHW). Updated quarterly. Covers all states including VIC and SA.</p>
-
-    <nav class="tabs historical-tabs">
-      <div class="container">
-        <button class="tab-btn active" data-tab="ed">ED Averages</button>
-        <button class="tab-btn" data-tab="surgical">Surgical Waits</button>
-        <button class="tab-btn" data-tab="fourhour">4-Hour Rule</button>
-      </div>
-    </nav>
-
-    <div class="search-bar">
-      <div class="container">
-        <input type="text" id="search-historical" placeholder="Search hospital, state, or procedure…" autocomplete="off">
-        <span id="result-count-historical" class="result-count"></span>
-      </div>
-    </div>
-
-    <section id="tab-ed" class="tab-panel active">
-      <h3 class="sub-heading">ED Waiting Times (Annual)</h3>
-      <p class="tab-desc">Average time from arrival to being seen in the Emergency Department, by hospital. Most recent year available.</p>
-      <div class="table-wrap">
-        <table id="table-ed"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-ed">Loading data…</p>
-    </section>
-
-    <section id="tab-surgical" class="tab-panel">
-      <h3 class="sub-heading">Surgical Waiting Times</h3>
-      <p class="tab-desc">How long people wait for non-urgent (elective) surgery, from referral to operation. By hospital and urgency level.</p>
-      <div class="table-wrap">
-        <table id="table-surgical"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-surgical">Loading data…</p>
-    </section>
-
-    <section id="tab-fourhour" class="tab-panel">
-      <h3 class="sub-heading">4-Hour Rule Performance</h3>
-      <p class="tab-desc">What percentage of ED patients left within 4 hours, and how long they typically stayed. A lower percentage means more people are stuck in ED for longer.</p>
-      <div class="table-wrap">
-        <table id="table-fourhour"><thead></thead><tbody></tbody></table>
-      </div>
-      <p class="loading" id="loading-fourhour">Loading data…</p>
-    </section>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════
-     ABOUT (footer-level, not a tab)
-     ═══════════════════════════════════════════════════════════ -->
-<section class="about-section">
-  <div class="container">
-    <h2 class="section-title">About TriageTime</h2>
-    <div class="about-content">
-      <h3>What this is</h3>
-      <p>A free, independent tool that shows hospital waiting times across Australia. No paywall. No signup. No tracking.</p>
-
-      <h3>Data Sources</h3>
-      <ul>
-        <li><strong>QLD Live:</strong> <a href="https://publicdata.au/d/qld-emergency-department-waits-now/" target="_blank" rel="noopener">Queensland Health</a> — CC BY 4.0</li>
-        <li><strong>NSW Live:</strong> <a href="https://www.emergencywait.health.nsw.gov.au/" target="_blank" rel="noopener">NSW Health</a></li>
-        <li><strong>WA Live:</strong> <a href="https://www.health.wa.gov.au/Reports-and-publications/Emergency-Department-activity/Data?report=ed_activity_now" target="_blank" rel="noopener">WA Health</a></li>
-        <li><strong>AU Annual (ED, Surgical, 4-Hour):</strong> <a href="https://publicdata.au" target="_blank" rel="noopener">AIHW</a> via publicdata.au — CC BY 4.0</li>
-      </ul>
-
-      <h3>What the numbers mean</h3>
-      <ul>
-        <li><strong>Waiting Now</strong> — the number of people who have been triaged and are waiting to be seen by a doctor.</li>
-        <li><strong>Median Wait</strong> — the typical wait time. Half of people wait less, half wait more.</li>
-        <li><strong>% Seen On Time</strong> — the percentage of patients seen within the target time for their triage category.</li>
-        <li><strong>% Left Within 4 Hrs</strong> — the percentage of ED patients who completed their visit and left within 4 hours of arrival.</li>
-      </ul>
-
-      <h3>Why no live data for VIC and SA?</h3>
-      <p>The Victorian and South Australian governments do not publish live or near-real-time emergency department waiting times for public hospitals. Their data is only available in annual or quarterly reports. We show their historical data in the section above.</p>
-
-      <h3>Licence</h3>
-      <p>All data belongs to the respective government publishers. This site is a convenience aggregator. Link back to original sources when citing.</p>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="container">
-    <p>Data refreshed daily. Last update: <span id="last-updated">—</span></p>
-    <p>TriageTime — Free. Open data. No tracking.</p>
-  </div>
-</footer>
-
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="app.js"></script>
-</body>
-</html>   
+<!-- ═══════════════════════════════════════════════════   
