@@ -287,6 +287,8 @@ function loadCSV(key, url) {
 // ─── Build combined live data (QLD with hospital names) ──────────────────────
 function buildAllLive() {
   const all = [];
+
+  // ── QLD (join with hospital names) ──
   const qld = tableData["live_qld"];
   const hospitals = tableData["qld_hospitals"];
 
@@ -310,9 +312,24 @@ function buildAllLive() {
     }
   }
 
+  // ── NSW (already de-duplicated by the workflow) ──
+  const nsw = tableData["live_nsw"];
+  if (nsw && Array.isArray(nsw)) {
+    for (const row of nsw) {
+      all.push({
+        hospital: row["hospital"] || "Unknown",
+        state: "NSW",
+        waiting: row["patient_wait_count"] || "—",
+        avg_wait: "—",
+        updated: row["source_updated_utc"] || "—",
+      });
+    }
+  }
+
   tableData["live_all"] = all;
-  tableData["live_qld"] = all;
-}
+  tableData["live_qld"] = all.filter(r => r.state === "QLD");
+  tableData["live_nsw"] = all.filter(r => r.state === "NSW");
+}   
 
 // ─── Render LIVE table ───────────────────────────────────────────────────────
 function renderLive() {
